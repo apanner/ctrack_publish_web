@@ -1,0 +1,32 @@
+CTrack Publish Engine — after install
+====================================
+
+Configuration (secrets are NOT inside the setup .exe for security)
+-----------------------------------------------------------------
+Put your real keys in a file named .env. The engine loads, in order:
+
+  1)  engine\.env
+      (inside the install folder, next to the "engine" subfolder that contains
+      "dist" and "python" — this is the usual place after you copy from .env.example)
+
+  2)  A .env file in the parent folder of "engine" (same level as the "engine" folder)
+      if you prefer one file for the whole install tree
+
+  3)  %USERPROFILE%\.ctrack-engine\.env
+      (optional; overrides the above for per-user or facility machines)
+
+Use your development engine\.env as a template. Do not commit real keys to git.
+
+MinIO / hybrid storage
+----------------------
+The log line "Hybrid disabled (missing HYBRID_STORAGE_PRIMARY_* env)" means the
+variables were not read. Check that your .env is in (1) or (2) above, that the
+file is plain text (not .env.txt), and that names match engine\.env.example
+(HYBRID_STORAGE_PRIMARY_ENDPOINT, BUCKET, ACCESS_KEY, SECRET_KEY, REGION).
+
+Port 7777 already in use
+-------------------------
+If you see EADDRINUSE on 127.0.0.1:7777, another process (often an old engine
+or another CTrack run) is using the port. Stop that process, or set
+CTRACK_ENGINE_PORT=7780 (or any free port) in your .env and point the web app
+at the same port (VITE_ENGINE_URL / engine CORS as needed).

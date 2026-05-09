@@ -1,0 +1,8 @@
+{
+  "name": "@ctrack/shared",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Reserved for shared types/utilities between web and engine",
+  "main": "index.js",
+  "types": "index.d.ts"
+}

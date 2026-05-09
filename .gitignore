@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+web/dist/
+engine/dist/
+engine/dist-bundle/
+
+# Local env and secrets
+.env
+.env.*
+!.env.example
+!**/.env.example
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.log
+.vscode/
+.idea/
+
+# Test / cache
+coverage/
+.turbo/
+*.tsbuildinfo
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+
+# Installer / release artifacts (optional local builds)
+*.exe
+Release/
+out/
