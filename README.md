@@ -79,11 +79,11 @@ Engine output: `engine/dist/`, web static files in `web/dist/`.
 
 ## Deploy web UI (Vercel)
 
-This repo includes [`vercel.json`](vercel.json): install at the **monorepo root**, build only `@ctrack/web`, publish `web/dist`.
+This repo includes [`vercel.json`](vercel.json): **`npm install` + `vite build` run inside `web/` only** (the engine package is not installed on Vercel), output `web/dist`.
 
 1. Push this repository to GitHub (see **GitHub** below).
 2. In [Vercel](https://vercel.com) → **Add New…** → **Project** → **Import** your GitHub repo.
-3. Vercel should pick up `vercel.json` automatically. **Root directory** stays the repo root (not `web/`).
+3. Vercel should pick up `vercel.json` automatically. **Root directory** stays the **repository root** (not `web/`); install/build run inside `web/` using [`web/package-lock.json`](web/package-lock.json) so Linux builders resolve Rollup’s optional native packages reliably (`npm install` only at the monorepo root is not used on Vercel).
 4. **Environment variables** (optional): set `VITE_SUPABASE_*` / `VITE_ENGINE_URL` if you want them baked into the build. For the usual **hosted web + local engine** flow, users often leave Supabase to **runtime** via the engine (`/api/setup/runtime-config`) and use the default engine URL (`http://127.0.0.1:7777`).
 5. **Supabase Auth**: add your production site URL (e.g. `https://your-app.vercel.app`) under Supabase → Authentication → URL Configuration → **Redirect URLs**.
 6. **Local engine CORS**: add that same origin to `CTRACK_WEB_ORIGINS` in `%USERPROFILE%\.ctrack-engine\.env` on machines running the engine.

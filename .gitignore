@@ -33,3 +33,4 @@ __pycache__/
 *.exe
 Release/
 out/
+.vercel
