@@ -22,10 +22,11 @@ export function ContextBar({ onNavigateToQueue }: { onNavigateToQueue?: () => vo
 
     return (
     <>
-        <div className="w-full bg-[#2A2A2A] border-b border-[#404040] px-4 py-3 flex items-center justify-between gap-4 select-none">
-            <div className="flex items-center gap-4">
-                <div className="flex flex-col gap-1 w-52">
-                    <span className="text-[10px] text-gray-400 font-semibold tracking-wider uppercase flex items-center gap-1.5">
+        <div className="w-full shrink-0 border-b border-white/[0.06] bg-[#141414]/95 backdrop-blur-sm">
+            <div className="mx-auto flex max-w-[1320px] flex-col gap-4 px-4 py-3 sm:px-6 lg:flex-row lg:items-end lg:justify-between lg:gap-6 lg:px-8">
+            <div className="flex flex-wrap items-end gap-x-6 gap-y-4">
+                <div className="flex min-w-[min(100%,220px)] flex-1 flex-col gap-1.5 sm:max-w-[260px]">
+                    <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-gray-500 flex items-center gap-1.5">
                         <Monitor className="w-3 h-3 text-[#24E1B1]" /> Project
                     </span>
                     <div className="flex items-center gap-2">
@@ -37,12 +38,12 @@ export function ContextBar({ onNavigateToQueue }: { onNavigateToQueue?: () => vo
                             value={projectId || ""}
                         >
                             <SelectTrigger className={cn(
-                                "h-9 text-sm font-medium bg-[#1A1A1A] border-[#404040] text-white hover:bg-[#212121] hover:border-gray-500 flex-1",
+                                "h-9 text-sm font-medium bg-[#0f0f0f] border-white/[0.08] text-white hover:border-white/15 flex-1 rounded-lg shadow-inner",
                                 !projectId && "text-gray-400"
                             )}>
                                 <SelectValue placeholder={projectsLoading ? "Loading..." : "Select Project..."} />
                             </SelectTrigger>
-                            <SelectContent className="bg-[#2A2A2A] border-[#404040] text-white">
+                            <SelectContent className="bg-[#1a1a1a] border-white/[0.08] text-white">
                                 {projects?.map(p => (
                                     <SelectItem key={p.id} value={p.id} className="text-sm text-white focus:bg-[#0096D6] focus:text-white">
                                         {p.name} <span className="text-xs text-gray-400 ml-2">[{p.code}]</span>
@@ -55,9 +56,9 @@ export function ContextBar({ onNavigateToQueue }: { onNavigateToQueue?: () => vo
 
                 {selectedProjectObj?.project_type === 'TV Episode' && (
                     <>
-                        <div className="h-8 w-px bg-[#404040] self-end mb-2" />
-                        <div className="flex flex-col gap-1 w-52">
-                            <span className="text-[10px] text-gray-400 font-semibold tracking-wider uppercase flex items-center gap-1.5">
+                        <div className="hidden h-8 w-px bg-white/[0.08] sm:block self-end mb-2" />
+                        <div className="flex min-w-[min(100%,220px)] flex-1 flex-col gap-1.5 sm:max-w-[260px]">
+                            <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-gray-500 flex items-center gap-1.5">
                                 <Tv className="w-3 h-3 text-[#24E1B1]" /> Episode
                             </span>
                             <Select
@@ -73,12 +74,12 @@ export function ContextBar({ onNavigateToQueue }: { onNavigateToQueue?: () => vo
                                 value={episodeId || "ALL_EPISODES"}
                             >
                                 <SelectTrigger className={cn(
-                                    "h-9 text-sm font-medium bg-[#1A1A1A] border-[#404040] text-white hover:bg-[#212121] hover:border-gray-500",
+                                    "h-9 text-sm font-medium bg-[#0f0f0f] border-white/[0.08] text-white hover:border-white/15 rounded-lg shadow-inner",
                                     !episodeId && "text-gray-400"
                                 )}>
                                     <SelectValue placeholder={episodesLoading ? "Loading..." : "Select Episode..."} />
                                 </SelectTrigger>
-                                <SelectContent className="bg-[#2A2A2A] border-[#404040] text-white">
+                                <SelectContent className="bg-[#1a1a1a] border-white/[0.08] text-white">
                                     <SelectItem value="ALL_EPISODES" className="text-sm italic text-gray-400 focus:bg-[#0096D6] focus:text-white">
                                         All Episodes
                                     </SelectItem>
@@ -93,9 +94,9 @@ export function ContextBar({ onNavigateToQueue }: { onNavigateToQueue?: () => vo
                     </>
                 )}
 
-                <div className="h-8 w-px bg-[#404040] self-end mb-2" />
-                <div className="flex flex-col gap-1 w-52">
-                    <span className="text-[10px] text-gray-400 font-semibold tracking-wider uppercase flex items-center gap-1.5">
+                <div className="hidden h-8 w-px bg-white/[0.08] sm:block self-end mb-2" />
+                <div className="flex min-w-[min(100%,240px)] flex-[1.1] flex-col gap-1.5 sm:max-w-[280px]">
+                    <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-gray-500 flex items-center gap-1.5">
                         <Clapperboard className="w-3 h-3 text-[#24E1B1]" /> Shot
                     </span>
                     <Select
@@ -110,12 +111,12 @@ export function ContextBar({ onNavigateToQueue }: { onNavigateToQueue?: () => vo
                         value={shotId || ""}
                     >
                         <SelectTrigger className={cn(
-                            "h-9 text-sm font-medium bg-[#1A1A1A] border-[#404040] text-white hover:bg-[#212121] hover:border-gray-500",
+                            "h-9 text-sm font-medium bg-[#0f0f0f] border-white/[0.08] text-white hover:border-white/15 rounded-lg shadow-inner",
                             !shotId && "text-gray-400"
                         )}>
                             <SelectValue placeholder={shotsLoading ? "Loading..." : "Select Shot..."} />
                         </SelectTrigger>
-                        <SelectContent className="bg-[#2A2A2A] border-[#404040] text-white max-h-[320px]">
+                        <SelectContent className="bg-[#1a1a1a] border-white/[0.08] text-white max-h-[320px]">
                             {shots?.map(s => (
                                 <SelectItem key={s.id} value={s.id} className="text-sm text-white focus:bg-[#0096D6] focus:text-white">
                                     <div className="flex flex-col">
@@ -134,8 +135,8 @@ export function ContextBar({ onNavigateToQueue }: { onNavigateToQueue?: () => vo
                 </div>
             </div>
             {projectId && shotId && (
-                <div className="flex-1 px-4 hidden lg:flex min-w-0 justify-end">
-                    <div className="bg-[#1A1A1A] border border-[#404040] rounded-lg px-4 py-2 flex items-center gap-4 min-w-0">
+                <div className="flex w-full min-w-0 shrink-0 lg:max-w-md lg:justify-end">
+                    <div className="w-full rounded-xl border border-white/[0.08] bg-[#0a0a0a]/90 px-4 py-2.5 shadow-inner lg:w-auto">
                         <div className="flex flex-col min-w-0">
                             <span className="text-[9px] font-semibold text-[#24E1B1] uppercase tracking-wide">Context</span>
                             <span className="text-xs font-medium text-gray-300 truncate">
@@ -147,6 +148,7 @@ export function ContextBar({ onNavigateToQueue }: { onNavigateToQueue?: () => vo
                     </div>
                 </div>
             )}
+            </div>
         </div>
     </>
     )

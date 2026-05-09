@@ -13,7 +13,7 @@ export function StatusBar() {
     const isDBHealthy = true
 
     return (
-        <div className="h-9 bg-[#1A1A1A] border-t border-[#404040] px-4 flex items-center justify-between select-none">
+        <div className="flex h-9 shrink-0 items-center justify-between border-t border-white/[0.06] bg-[#121212]/98 px-4 select-none backdrop-blur-sm sm:px-6">
             <div className="flex items-center gap-6">
                 <div className="flex items-center gap-2 group cursor-default">
                     <Database className={cn(

@@ -239,45 +239,45 @@ export function QuickPublishView({ onNavigateToQueue }: QuickPublishViewProps) {
     }, [projectId, shotId, shotCode, doPublish])
 
     return (
-        <div className="flex flex-col h-full overflow-hidden bg-[#121212]">
+        <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[#0f0f0f]">
             <ContextBar onNavigateToQueue={onNavigateToQueue} />
 
-            {/* Smart tabs */}
-            <div className="border-b border-[#404040] bg-[#1A1A1A] px-6">
-                <div className="flex gap-1">
+            <div className="shrink-0 border-b border-white/[0.06] bg-[#111]/90">
+                <div className="mx-auto flex max-w-[1320px] items-center px-4 py-2.5 sm:px-6 lg:px-8">
+                    <div className="inline-flex rounded-xl bg-[#0a0a0a] p-1 ring-1 ring-white/[0.06]">
                     <button
                         type="button"
                         onClick={() => setActiveTab("element")}
                         className={cn(
-                            "px-5 py-3 text-sm font-semibold uppercase tracking-wide border-b-2 transition-colors",
+                            "rounded-lg px-4 py-2 text-xs font-semibold tracking-wide transition-all sm:px-5 sm:text-sm",
                             activeTab === "element"
-                                ? "border-[#24E1B1] text-[#24E1B1] bg-[#2A2A2A]"
-                                : "border-transparent text-gray-400 hover:text-gray-300 hover:bg-[#212121]"
+                                ? "bg-white/[0.08] text-[#24E1B1] shadow-sm ring-1 ring-[#24E1B1]/30"
+                                : "text-gray-500 hover:text-gray-300"
                         )}
                     >
-                        <Layers className="w-4 h-4 inline-block mr-2 align-middle" />
+                        <Layers className="mr-2 inline-block h-4 w-4 align-middle" />
                         Element
                     </button>
                     <button
                         type="button"
                         onClick={() => setActiveTab("version")}
                         className={cn(
-                            "px-5 py-3 text-sm font-semibold uppercase tracking-wide border-b-2 transition-colors",
+                            "rounded-lg px-4 py-2 text-xs font-semibold tracking-wide transition-all sm:px-5 sm:text-sm",
                             activeTab === "version"
-                                ? "border-[#24E1B1] text-[#24E1B1] bg-[#2A2A2A]"
-                                : "border-transparent text-gray-400 hover:text-gray-300 hover:bg-[#212121]"
+                                ? "bg-white/[0.08] text-[#24E1B1] shadow-sm ring-1 ring-[#24E1B1]/30"
+                                : "text-gray-500 hover:text-gray-300"
                         )}
                     >
-                        <Film className="w-4 h-4 inline-block mr-2 align-middle" />
+                        <Film className="mr-2 inline-block h-4 w-4 align-middle" />
                         Version
                     </button>
+                    </div>
                 </div>
             </div>
 
-            <div className="flex-1 flex flex-col md:flex-row gap-4 p-4 overflow-hidden min-h-0">
-                {/* Main: drop zone + tab form — compact so all fits in view */}
-                <div className="flex-[3] flex flex-col gap-4 overflow-auto min-h-0 relative">
-                    <div className="sticky top-0 z-20 bg-[#121212] pt-0 pb-2 space-y-2">
+            <div className="min-h-0 flex-1 overflow-y-auto">
+                <div className="mx-auto flex max-w-[1320px] flex-col gap-5 px-4 py-5 sm:px-6 lg:px-8">
+                    <div className="sticky top-0 z-10 space-y-3 bg-[#0f0f0f]/95 pb-1 pt-0 backdrop-blur-md">
                         <StagingZone onDropItems={handleStagingDrop} onClear={handleStagingClear} items={staging} />
                         {staging.length > 0 && shotId && (() => {
                             const fc = parsePathContext(staging[0].filePath).shotCode
@@ -301,7 +301,7 @@ export function QuickPublishView({ onNavigateToQueue }: QuickPublishViewProps) {
                                 initial={{ opacity: 0, y: 8 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0, y: -8 }}
-                                className="bg-[#2A2A2A] border border-[#404040] rounded-xl p-4 space-y-3"
+                                className="rounded-2xl border border-white/[0.07] bg-[#141414]/90 p-5 shadow-xl shadow-black/30 ring-1 ring-white/[0.04] backdrop-blur-sm space-y-4"
                             >
                                 <div className="flex items-center justify-between">
                                     <h3 className="text-[11px] font-black text-white uppercase tracking-wider flex items-center gap-2">
@@ -334,10 +334,10 @@ export function QuickPublishView({ onNavigateToQueue }: QuickPublishViewProps) {
                                     <div className="space-y-1">
                                         <label className="text-[9px] text-gray-400 font-bold uppercase tracking-wider">Category</label>
                                         <Select value={elementCategory ?? "media"} onValueChange={(v) => setElementCategory(v as "media" | "document")}>
-                                            <SelectTrigger className="h-8 bg-[#1A1A1A] border-[#404040] text-white text-xs">
+                                            <SelectTrigger className="h-8 bg-[#0a0a0a] border-white/[0.08] text-white text-xs rounded-lg">
                                                 <SelectValue placeholder="Media / Document" />
                                             </SelectTrigger>
-                                            <SelectContent className="bg-[#2A2A2A] border-[#404040]">
+                                            <SelectContent className="bg-[#1a1a1a] border-white/[0.08]">
                                                 <SelectItem value="media" className="text-xs text-white focus:bg-[#0096D6]">Media</SelectItem>
                                                 <SelectItem value="document" className="text-xs text-white focus:bg-[#0096D6]">Document</SelectItem>
                                             </SelectContent>
@@ -352,10 +352,10 @@ export function QuickPublishView({ onNavigateToQueue }: QuickPublishViewProps) {
                                                 if (v === "plate") setElementNotes("input scan plate")
                                             }}
                                         >
-                                            <SelectTrigger className="h-8 bg-[#1A1A1A] border-[#404040] text-white text-xs">
+                                            <SelectTrigger className="h-8 bg-[#0a0a0a] border-white/[0.08] text-white text-xs rounded-lg">
                                                 <SelectValue placeholder="Type" />
                                             </SelectTrigger>
-                                            <SelectContent className="bg-[#2A2A2A] border-[#404040]">
+                                            <SelectContent className="bg-[#1a1a1a] border-white/[0.08]">
                                                 <SelectItem value="plate" className="text-xs text-white focus:bg-[#0096D6]">Plate</SelectItem>
                                                 <SelectItem value="edit_ref" className="text-xs text-white focus:bg-[#0096D6]">Edit ref</SelectItem>
                                                 <SelectItem value="other" className="text-xs text-white focus:bg-[#0096D6]">Other</SelectItem>
@@ -365,7 +365,7 @@ export function QuickPublishView({ onNavigateToQueue }: QuickPublishViewProps) {
                                     <div className="space-y-1">
                                         <label className="text-[9px] text-gray-400 font-bold uppercase tracking-wider">Version (Auto)</label>
                                         <Input
-                                            className="h-8 bg-[#1A1A1A] border-[#404040] text-white text-xs opacity-50 cursor-not-allowed font-bold"
+                                            className="h-8 bg-[#0a0a0a] border-white/[0.08] text-white text-xs opacity-50 cursor-not-allowed font-bold rounded-lg"
                                             value={suggestedElementLabel}
                                             readOnly
                                             disabled
@@ -378,7 +378,7 @@ export function QuickPublishView({ onNavigateToQueue }: QuickPublishViewProps) {
                                         <span className="text-gray-600 italic normal-case font-normal text-[10px] truncate max-w-[200px]">{staging.length > 0 ? staging[0].fileName : ""}</span>
                                     </label>
                                     <textarea
-                                        className="w-full min-h-[100px] rounded-md bg-[#1A1A1A] border border-[#404040] text-white text-xs p-3 placeholder:text-gray-500 focus:ring-1 focus:ring-[#24E1B1] focus:outline-none"
+                                        className="min-h-[100px] w-full rounded-xl border border-white/[0.08] bg-[#0a0a0a] p-3 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-[#24E1B1]/70"
                                         placeholder="Add notes..."
                                         value={elementNotes}
                                         onChange={(e) => setElementNotes(e.target.value)}
@@ -412,7 +412,7 @@ export function QuickPublishView({ onNavigateToQueue }: QuickPublishViewProps) {
                                 initial={{ opacity: 0, y: 8 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0, y: -8 }}
-                                className="bg-[#2A2A2A] border border-[#404040] rounded-xl p-4 space-y-3"
+                                className="rounded-2xl border border-white/[0.07] bg-[#141414]/90 p-5 shadow-xl shadow-black/30 ring-1 ring-white/[0.04] backdrop-blur-sm space-y-4"
                             >
                                 <div className="flex items-center justify-between">
                                     <h3 className="text-[11px] font-black text-white uppercase tracking-wider flex items-center gap-2">
@@ -456,7 +456,7 @@ export function QuickPublishView({ onNavigateToQueue }: QuickPublishViewProps) {
                                                         "flex-1 h-9 px-0 text-[10px] font-black uppercase tracking-widest transition-all duration-200",
                                                         deliveryType === t
                                                             ? "bg-[#0096D6] border-[#0096D6] text-white shadow-[0_4px_12px_rgba(0,150,214,0.3)] scale-[1.02]"
-                                                            : "bg-[#1A1A1A] border-white/5 text-gray-500 hover:border-white/20 hover:text-gray-300"
+                                                            : "border-white/[0.06] bg-[#0a0a0a] text-gray-500 hover:border-white/15 hover:text-gray-300"
                                                     )}
                                                     onClick={() => setDeliveryType(t)}
                                                 >
@@ -468,10 +468,10 @@ export function QuickPublishView({ onNavigateToQueue }: QuickPublishViewProps) {
                                     <div className="md:col-span-4 space-y-2">
                                         <label className="text-[10px] text-gray-400 font-black uppercase tracking-[0.15em] ml-0.5">Task</label>
                                         <Select disabled={!shotId || tasksLoading} value={taskId ?? ""} onValueChange={setTaskId}>
-                                            <SelectTrigger className="h-9 bg-[#1A1A1A] border-white/5 text-white text-[11px] font-bold ring-offset-0 focus:ring-1 focus:ring-[#0096D6] transition-all">
+                                            <SelectTrigger className="h-9 rounded-lg border-white/[0.08] bg-[#0a0a0a] text-[11px] font-bold text-white ring-offset-0 transition-all focus:ring-1 focus:ring-[#0096D6]">
                                                 <SelectValue placeholder={tasksLoading ? "…" : "Select task"} />
                                             </SelectTrigger>
-                                            <SelectContent className="bg-[#2A2A2A] border-white/10">
+                                            <SelectContent className="border-white/[0.08] bg-[#1a1a1a]">
                                                 {tasks?.map((t) => (
                                                     <SelectItem key={t.id} value={t.id} className="text-xs text-white focus:bg-[#0096D6] focus:text-white">
                                                         {t.name}
@@ -494,7 +494,7 @@ export function QuickPublishView({ onNavigateToQueue }: QuickPublishViewProps) {
                                         </div>
                                         <Input
                                             className={cn(
-                                                "h-9 bg-[#1A1A1A] border-white/5 text-white text-xs font-black tracking-widest transition-all",
+                                                "h-9 rounded-lg border-white/[0.08] bg-[#0a0a0a] text-xs font-black tracking-widest text-white transition-all",
                                                 versionOverride ? "border-[#0096D6]/30 ring-1 ring-[#0096D6]/20" : "opacity-60 cursor-not-allowed"
                                             )}
                                             value={versionOverride ? versionName : versionDisplay}
@@ -504,22 +504,22 @@ export function QuickPublishView({ onNavigateToQueue }: QuickPublishViewProps) {
                                     </div>
                                 </div>
 
-                                <div className="space-y-2 pt-2">
+                                <div className="space-y-2 pt-2 max-w-2xl">
                                     <label className="text-[10px] text-gray-400 font-black uppercase tracking-[0.15em] ml-0.5 flex justify-between items-end">
                                         <span>Submission Notes</span>
                                         <span className="text-gray-600 italic normal-case font-bold text-[10px] opacity-60">Templates auto-applied</span>
                                     </label>
                                     <textarea
-                                        className="w-full min-h-[160px] rounded-xl bg-[#1A1A1A] border border-white/5 text-white text-xs p-4 placeholder:text-gray-600 focus:ring-1 focus:ring-[#24E1B1] focus:border-[#24E1B1]/30 focus:outline-none resize-none leading-relaxed shadow-inner transition-all"
+                                        className="w-full min-h-[140px] rounded-xl bg-[#0a0a0a] border border-white/[0.08] text-white text-sm p-4 placeholder:text-gray-600 focus:ring-1 focus:ring-[#24E1B1]/80 focus:border-[#24E1B1]/40 focus:outline-none resize-y leading-relaxed shadow-inner transition-all"
                                         placeholder={NOTES_TEMPLATE}
                                         value={submissionNotes}
                                         onChange={(e) => setSubmissionNotes(e.target.value)}
                                     />
                                 </div>
 
-                                <div className="space-y-3 pt-3">
+                                <div className="space-y-3 pt-2 max-w-3xl">
                                     <label className="text-[10px] text-gray-400 font-black uppercase tracking-[0.15em] ml-0.5">Notify Producers & Leads</label>
-                                    <div className="flex flex-wrap gap-x-6 gap-y-2 bg-black/20 p-3 rounded-lg border border-white/5">
+                                    <div className="flex flex-wrap gap-x-6 gap-y-2 rounded-xl border border-white/[0.06] bg-[#0a0a0a]/50 p-4">
                                         {recipientsLoading ? (
                                             <span className="text-[10px] text-gray-500 animate-pulse">Loading recipients…</span>
                                         ) : (
@@ -544,7 +544,8 @@ export function QuickPublishView({ onNavigateToQueue }: QuickPublishViewProps) {
             </div>
 
             {/* Footer: Publish adds to queue and navigates to Queue tab */}
-            <div className="flex-shrink-0 border-t border-[#404040] bg-[#1A1A1A] px-6 py-3 flex items-center justify-end gap-3">
+            <div className="flex-shrink-0 border-t border-white/[0.06] bg-[#121212]/95 backdrop-blur-md">
+                <div className="mx-auto flex w-full max-w-[1320px] flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
                 {staging.length > 0 && (
                     <span className="text-xs text-gray-400">
                         {staging.length} file{staging.length !== 1 ? "s" : ""} staged — Publish to add to queue
@@ -564,6 +565,7 @@ export function QuickPublishView({ onNavigateToQueue }: QuickPublishViewProps) {
                     <Send className="w-4 h-4" />
                     {activeTab === "element" ? "Publish Element" : "Publish Version"}
                 </Button>
+                </div>
             </div>
 
             {/* Shot mismatch warning modal */}

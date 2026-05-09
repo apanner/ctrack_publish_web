@@ -16,10 +16,10 @@ export function AppShell() {
     const [activeTab, setActiveTab] = useState<TabId>("quick-publish")
 
     return (
-        <div className="flex h-screen w-full bg-[#121212] font-sans selection:bg-[#0096D6]/30 text-white overflow-hidden">
+        <div className="flex h-screen w-full bg-[#0c0c0c] font-sans selection:bg-[#0096D6]/30 text-white overflow-hidden antialiased">
             <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} onNavigateToQueue={() => setActiveTab("queue")} />
 
-            <main className="flex-1 min-w-0 h-full relative overflow-hidden flex flex-col">
+            <main className="flex-1 min-w-0 h-full relative overflow-hidden flex flex-col bg-[#0f0f0f] border-l border-white/[0.05]">
                 <div className="flex-1 overflow-hidden relative">
                     <AnimatePresence mode="wait">
                         <motion.div

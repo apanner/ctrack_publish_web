@@ -47,21 +47,23 @@ export function Sidebar({ activeTab, setActiveTab, onNavigateToQueue, className 
     ]
 
     return (
-        <div className={cn("h-full w-64 border-r border-[#404040] bg-[#1A1A1A] flex flex-col", className)}>
-            <div className="p-5">
-                <div className="flex items-center gap-2">
-                    <span className="text-xl font-bold tracking-tight text-[#24E1B1]">CTrack</span>
-                    <span className="text-xl font-bold tracking-tight text-gray-300">Publisher</span>
+        <div className={cn("h-full w-[240px] shrink-0 border-r border-white/[0.06] bg-[#121212] flex flex-col", className)}>
+            <div className="p-5 pb-4">
+                <div className="flex flex-col gap-0.5">
+                    <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-gray-500">CTrack</span>
+                    <div className="flex items-baseline gap-2">
+                        <span className="text-lg font-semibold tracking-tight text-[#24E1B1]">Publisher</span>
+                    </div>
                 </div>
             </div>
 
-            <Separator className="bg-[#404040] mx-4 w-auto" />
+            <Separator className="bg-white/[0.06] mx-4 w-auto" />
 
             <nav className="flex-1 space-y-1.5 px-3 py-6">
                 {canCreateProject && (
                     <button
                         onClick={() => setWizardOpen(true)}
-                        className="flex w-full items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl transition-all duration-200 text-[#24E1B1] hover:bg-[#2A2A2A] border border-dashed border-[#24E1B1]/50"
+                        className="flex w-full items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 text-[#24E1B1] hover:bg-[#24E1B1]/10 border border-dashed border-[#24E1B1]/40"
                     >
                         <PlusCircle className="h-4 w-4 shrink-0" />
                         Create Project
@@ -72,10 +74,10 @@ export function Sidebar({ activeTab, setActiveTab, onNavigateToQueue, className 
                         key={item.id}
                         onClick={() => setActiveTab(item.id)}
                         className={cn(
-                            "flex w-full items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl transition-all duration-200 group",
+                            "flex w-full items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 group text-left",
                             activeTab === item.id
-                                ? "bg-[#0096D6] text-white"
-                                : "text-gray-400 hover:bg-[#2A2A2A] hover:text-white"
+                                ? "bg-[#0096D6] text-white shadow-[0_4px_20px_rgba(0,150,214,0.25)]"
+                                : "text-gray-400 hover:bg-white/[0.04] hover:text-white"
                         )}
                     >
                         <item.icon className={cn(
@@ -88,7 +90,7 @@ export function Sidebar({ activeTab, setActiveTab, onNavigateToQueue, className 
             </nav>
 
             <div className="p-4 mt-auto">
-                <div className="bg-[#2A2A2A] rounded-lg p-4 border border-[#404040]">
+                <div className="rounded-xl p-3 border border-white/[0.06] bg-white/[0.02] shadow-inner">
                     <div className="flex items-center gap-3 mb-3">
                         <div className="w-10 h-10 shrink-0 rounded-full bg-[#404040] flex items-center justify-center overflow-hidden">
                             {profile?.avatar_url ? (
