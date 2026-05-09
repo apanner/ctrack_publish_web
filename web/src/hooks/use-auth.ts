@@ -12,6 +12,36 @@ const queryKeys = {
     },
 }
 
+/**
+ * OAuth redirect must be a URL the browser can open that serves this SPA and receives `?code=`.
+ * A wrong `VITE_AUTH_CALLBACK_URL` (e.g. 127.0.0.1:3847) while the app runs on :5173 or Vercel
+ * causes ERR_CONNECTION_REFUSED after Google — ignore env when it doesn't match this page's origin.
+ */
+function resolveOAuthRedirectTo(): string {
+    const fromEnv = import.meta.env.VITE_AUTH_CALLBACK_URL?.trim()
+    if (typeof window !== "undefined") {
+        const fallback = `${window.location.origin}/`
+        if (!fromEnv) {
+            return fallback
+        }
+        try {
+            const envOrigin = new URL(fromEnv).origin
+            if (envOrigin === window.location.origin) {
+                return fromEnv
+            }
+        } catch {
+            // malformed env URL — use current origin
+        }
+        console.warn(
+            "[useAuth] VITE_AUTH_CALLBACK_URL does not match this page — using",
+            fallback,
+            "Update web/.env, Vercel env, or engine setup so OAuth redirect matches where you open the app.",
+        )
+        return fallback
+    }
+    return fromEnv || "http://localhost:5173/"
+}
+
 export function useAuth() {
     const queryClient = useQueryClient()
     const [user, setUser] = useState<User | null>(null)
@@ -77,9 +107,7 @@ export function useAuth() {
 
     const signInWithGoogle = useMutation({
         mutationFn: async () => {
-            const redirectTo =
-                import.meta.env.VITE_AUTH_CALLBACK_URL?.trim() ||
-                `${typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173'}/`
+            const redirectTo = resolveOAuthRedirectTo()
             if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
                 throw new Error('Missing Supabase config (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY). Check .env.')
             }
