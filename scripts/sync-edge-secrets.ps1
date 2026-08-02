@@ -2,7 +2,7 @@
 Push Edge Function secrets to Supabase from ctrack_publish_web/.env.
 
 Installer downloads use GitHub Releases (GITHUB_RELEASE_TOKEN).
-Legacy S3/MinIO secrets are optional — only needed for older releases still on S3.
+Legacy S3/MinIO secrets are optional - only needed for older releases still on S3.
 
 Usage:
   npm run deploy:edge:secrets
@@ -10,7 +10,7 @@ Usage:
 
 param(
   [string]$ProjectRef,
-  [string]$SupabaseWorkdir = $(Join-Path $PSScriptRoot ".."),
+  [string]$SupabaseWorkdir = $(Join-Path $PSScriptRoot "..")
 )
 
 Set-StrictMode -Version Latest
@@ -36,7 +36,7 @@ if ([string]::IsNullOrWhiteSpace($githubToken)) {
   $githubToken = $env:GITHUB_TOKEN
 }
 if ([string]::IsNullOrWhiteSpace($githubToken)) {
-  throw "Missing GITHUB_RELEASE_TOKEN (or GITHUB_TOKEN) in .env — needed for engine-download GitHub asset URLs"
+  throw "Missing GITHUB_RELEASE_TOKEN (or GITHUB_TOKEN) in .env - needed for engine-download GitHub asset URLs"
 }
 
 $secretLines = @(
@@ -73,9 +73,9 @@ if ($hasAws) {
   foreach ($name in $optionalAws) {
     $secretLines += "$name=$([Environment]::GetEnvironmentVariable($name))"
   }
-  Write-Host "`[edge-secrets`] Including legacy AWS S3 secrets (older releases on S3)"
+  Write-Host '[edge-secrets] Including legacy AWS S3 secrets (older releases on S3)'
 } else {
-  Write-Host "`[edge-secrets`] Skipping AWS S3 secrets (GitHub Releases is the primary installer host)"
+  Write-Host '[edge-secrets] Skipping AWS S3 secrets (GitHub Releases is the primary installer host)'
 }
 
 $optionalHybrid = @(
@@ -98,9 +98,9 @@ try {
   [System.IO.File]::WriteAllText($tempFile, ($secretLines -join [Environment]::NewLine), $utf8NoBom)
 
   $workdir = (Resolve-Path -LiteralPath $SupabaseWorkdir).Path
-  Write-Host "`[edge-secrets`] Project ref: $ProjectRef"
-  Write-Host "`[edge-secrets`] Setting GitHub release token + Supabase service role"
-  Write-Host "`[edge-secrets`] Note: SUPABASE_URL is auto-injected by Supabase"
+  Write-Host ('[edge-secrets] Project ref: ' + $ProjectRef)
+  Write-Host '[edge-secrets] Setting GitHub release token + Supabase service role'
+  Write-Host '[edge-secrets] Note: SUPABASE_URL is auto-injected by Supabase'
 
   Push-Location $workdir
   try {
@@ -112,7 +112,7 @@ try {
     Pop-Location
   }
 
-  Write-Host "`[edge-secrets`] Done."
+  Write-Host '[edge-secrets] Done.'
 } finally {
   if (Test-Path -LiteralPath $tempFile) {
     Remove-Item -LiteralPath $tempFile -Force
