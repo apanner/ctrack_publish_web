@@ -1,0 +1,46 @@
+name: CTrack Dev (build)
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - develop
+  pull_request:
+
+concurrency:
+  group: ctrack-dev-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build engine + web
+        run: npm run build
+
+      - name: Verify Python GUI syntax
+        shell: powershell
+        run: |
+          $files = @(
+            "engine/python/gui/api.py",
+            "engine/python/gui/tray_app.py",
+            "engine/python/gui/settings_window.py"
+          )
+          foreach ($file in $files) {
+            python -m py_compile $file
+          }

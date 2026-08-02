@@ -1,0 +1,72 @@
+; Inno Setup 6 — CTrack Publish Engine (VFX / post-production branding)
+; Wizard artwork: .\branding\ (240x459 sidebar + 147x147 header — HiDPI-safe ratios per Inno docs)
+; Compile: "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\CTrackEngine.iss
+; If setup shows "bitmap is not valid", run branding\normalize-wizard-images.ps1 (outputs 24-bit BMP; PNG sources alone often fail at runtime).
+
+#define MyAppName "CTrack Publish Engine"
+#define MyAppVersion "0.1.0"
+#define MyAppPublisher "CTrack"
+#define MyAppExeName "start-engine-tray.vbs"
+
+[Setup]
+AppId={{A8E9F4C3-6B2D-4E1F-9C0D-AABBCCDDEEFF}
+AppName={#MyAppName}
+AppVersion={#MyAppVersion}
+AppPublisher={#MyAppPublisher}
+AppCopyright=Copyright (C) 2026 {#MyAppPublisher}
+DefaultDirName={autopf}\CTrackPublishEngine
+DefaultGroupName={#MyAppName}
+AllowNoIcons=yes
+DisableProgramGroupPage=yes
+
+OutputDir=..\installer\output
+OutputBaseFilename=CTrackPublishEngine-Setup
+Compression=lzma2/max
+SolidCompression=yes
+
+WizardStyle=modern
+; 24-bit BMP (see branding\normalize-wizard-images.ps1) — PNGs often trigger "bitmap is not valid" at runtime
+WizardImageFile=branding\wizard-large.bmp
+WizardSmallImageFile=branding\wizard-small.bmp
+WizardImageStretch=yes
+
+SetupIconFile=branding\app-icon.ico
+UninstallDisplayIcon={app}\engine\assets\ctrack-tray.ico
+
+ArchitecturesInstallIn64BitMode=x64
+PrivilegesRequired=lowest
+SetupMutex=Global\CTrackPublishEngine_Setup_{#MyAppVersion}
+
+VersionInfoVersion={#MyAppVersion}.0
+VersionInfoCompany={#MyAppPublisher}
+VersionInfoProductName={#MyAppName}
+VersionInfoProductVersion={#MyAppVersion}
+VersionInfoTextVersion={#MyAppVersion}
+
+[Languages]
+Name: "english"; MessagesFile: "compiler:Default.isl"
+
+[Messages]
+; Professional VFX pipeline tone — matches CTrack web shell (dark / teal accents)
+english.WelcomeLabel1=Welcome to the [name] Setup Wizard.%n%nThis installs the local publish engine for CTrack: transcoding, staging, job queue, object storage upload, and pipeline hooks aligned with review and delivery workflows common in VFX and episodic production.
+english.WelcomeLabel2=Click Next to continue.%n%nThe installer includes Node, portable Python, FFmpeg, OpenImageIO, and OCIO configs used by the engine under one install. Facility configuration is handled by the hosted web setup flow after the engine starts.
+
+english.FinishedLabel=Setup has installed [name] on this workstation.%n%nFrom the Start menu, run Start CTrack Engine to launch the system tray host (engine API on 127.0.0.1:7777). Then open the hosted CTrack Publish web app and complete first-run setup from the browser.
+
+[Files]
+Source: "..\release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+[Tasks]
+Name: "desktopicon"; Description: "Create a desktop shortcut for CTrack Publish Engine"; GroupDescription: "Additional shortcuts:"; Flags: unchecked
+
+[Run]
+Filename: "{cmd}"; Parameters: "/C netsh advfirewall firewall add rule name=""CTrack Engine API (loopback 7777)"" dir=in action=allow protocol=TCP localip=127.0.0.1 localport=7777 profile=private,domain"; Flags: runhidden
+Filename: "{app}\{#MyAppExeName}"; Description: "Start CTrack Engine in the system tray"; Flags: postinstall nowait skipifsilent
+
+[Icons]
+Name: "{group}\Start CTrack Engine"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; IconFilename: "{app}\engine\assets\ctrack-tray.ico"
+Name: "{group}\Start Engine (console)"; Filename: "{app}\start-engine.bat"; WorkingDir: "{app}"; IconFilename: "{app}\engine\assets\ctrack-tray.ico"
+Name: "{group}\Engine Settings"; Filename: "{app}\open-tray-settings.vbs"; WorkingDir: "{app}"; IconFilename: "{app}\engine\assets\ctrack-tray.ico"
+Name: "{group}\Open Hosted Web UI"; Filename: "https://ctrackpublishweb.vercel.app/"; IconFilename: "{app}\engine\assets\ctrack-tray.ico"
+Name: "{group}\Open engine folder"; Filename: "{win}\explorer.exe"; Parameters: """{app}\engine"""; IconFilename: "{app}\engine\assets\ctrack-tray.ico"
+Name: "{autodesktop}\CTrack Publish Engine"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; IconFilename: "{app}\engine\assets\ctrack-tray.ico"; Tasks: desktopicon

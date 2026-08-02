@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+web/dist/
+engine/dist/
+engine/dist-bundle/
+
+# Local env and secrets
+.env
+.env.*
+!.env.example
+!**/.env.example
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.log
+.vscode/
+.idea/
+
+# Test / cache
+coverage/
+.turbo/
+.cache/
+*.tsbuildinfo
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+
+# Bundled runtime tools (install via engine/python/scripts/setup_oiio.py)
+engine/runtime/oiio/
+engine/runtime/ocio/aces_1.2/
+engine/runtime/python/
+
+# Installer / release artifacts
+**/installer/output/
+Release/
+release/
+out/
+.vercel
+ctrack_nuke/installer/output/

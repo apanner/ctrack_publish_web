@@ -1,0 +1,36 @@
+{
+  "name": "ctrack-publish-web-hybrid",
+  "private": true,
+  "version": "0.1.0",
+  "description": "CTrack Publish hybrid monorepo: lightweight local engine + web UI",
+  "scripts": {
+    "postinstall": "npm rebuild better-sqlite3 -w engine && powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ensure-engine-runtime.ps1 -TargetRoot engine && powershell -NoProfile -ExecutionPolicy Bypass -File scripts/provision-gui-python.ps1 -TargetRoot engine",
+    "dev": "concurrently -n web,engine -c blue,green \"npm run dev -w web\" \"npm run dev -w engine\"",
+    "dev:web": "npm run dev -w web",
+    "dev:engine": "npm run dev -w engine",
+    "build": "npm run build -w engine && npm run build -w web",
+    "lint": "npm run lint -w web --if-present && npm run lint -w engine --if-present",
+    "pack:release": "scripts\\build-release.bat /nopause",
+    "pack:installer": "scripts\\build-installer.bat",
+    "deploy:dev": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deploy-dev.ps1",
+    "deploy:edge": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deploy-edge-functions.ps1",
+    "deploy:edge:login": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deploy-edge-functions.ps1 -Login",
+    "deploy:edge:secrets": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/sync-edge-secrets.ps1",
+    "deploy:release": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deploy-release.ps1",
+    "deploy:release:remote": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/trigger-release-workflow.ps1",
+    "deploy:secrets:github": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/setup-github-deploy-secrets.ps1",
+    "deploy:verify": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-edge-functions.ps1",
+    "test:storage": "node scripts/test-storage-connections.mjs"
+  },
+  "workspaces": [
+    "engine",
+    "web",
+    "packages/*"
+  ],
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

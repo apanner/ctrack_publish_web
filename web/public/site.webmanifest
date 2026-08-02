@@ -1,0 +1,16 @@
+{
+  "name": "CTrack Publish",
+  "short_name": "CTrack",
+  "description": "VFX publish and review pipeline",
+  "icons": [
+    {
+      "src": "/ctrack-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "theme_color": "#0b1118",
+  "background_color": "#0b1118",
+  "display": "standalone"
+}

@@ -1,0 +1,59 @@
+CTrack Publish Engine — after install
+====================================
+
+Runtime
+-------
+The installer includes the engine runtime:
+
+  - portable Node.js
+  - portable Python under engine\runtime\python
+  - Python media packages (opencv-python-headless, ffmpeg-python)
+  - FFmpeg under engine\runtime\ffmpeg
+
+Users should not install Python, pip, FFmpeg, or Python modules manually.
+
+Configuration
+-------------
+Preferred no-manual-flow for a facility installer:
+
+  Build the installer with:
+
+    scripts\build-installer.bat /bundle-env
+
+  This copies your build-machine engine\.env into the installer payload as
+  engine\.env. Users do not copy configuration manually.
+
+Security note: that setup .exe contains your connection data. Share it only with
+trusted users/machines.
+
+If configuration is not bundled, first-run setup is handled from the hosted web
+app. Values are saved to:
+
+  %USERPROFILE%\.ctrack-engine\.env
+
+For support/override, the engine loads .env files in this order:
+
+  1)  engine\.env
+      (inside the install folder, next to "dist", "python", and "runtime")
+
+  2)  A .env file in the parent folder of "engine" (same level as the "engine" folder)
+      if you prefer one file for the whole install tree
+
+  3)  %USERPROFILE%\.ctrack-engine\.env
+      (optional; overrides the above for per-user or facility machines)
+
+Do not commit real keys to git.
+
+MinIO / hybrid storage
+----------------------
+The log line "Hybrid disabled (missing HYBRID_STORAGE_PRIMARY_* env)" means the
+variables were not read. Check that your .env is in (1) or (2) above, that the
+file is plain text (not .env.txt), and that names match engine\.env.example
+(HYBRID_STORAGE_PRIMARY_ENDPOINT, BUCKET, ACCESS_KEY, SECRET_KEY, REGION).
+
+Port 7777 already in use
+-------------------------
+If you see EADDRINUSE on 127.0.0.1:7777, another process (often an old engine
+or another CTrack run) is using the port. Stop that process, or set
+CTRACK_ENGINE_PORT=7780 (or any free port) in your .env and point the web app
+at the same port (VITE_ENGINE_URL / engine CORS as needed).

@@ -1,0 +1,176 @@
+#! C:/Program Files/Nuke15.1v4/nuke-15.1.4.dll -nx
+#write_info Write_MP4 file:"Y:/cst/shows/108/STU108_005_0020/Out/STU108_005_0020_comp_v002/review/STU108_005_0020_comp_v002.mp4" format:"1920 1080 1" chans:":rgba.red:rgba.green:rgba.blue:" framerange:"1 100" fps:"0" colorspace:"color_picking	color_picking (Output - sRGB)" datatype:"unknown" transfer:"unknown" views:"main" colorManagement:"OCIO"
+version 15.1 v4
+define_window_layout_xml {<?xml version="1.0" encoding="UTF-8"?>
+<layout version="1.0">
+    <window x="0" y="0" w="2557" h="1341" screen="0">
+        <splitter orientation="1">
+            <split size="40"/>
+            <dock id="" hideTitles="1" activePageId="Toolbar.1">
+                <page id="Toolbar.1"/>
+            </dock>
+            <split size="1894" stretch="1"/>
+            <splitter orientation="2">
+                <split size="1141"/>
+                <splitter orientation="1">
+                    <split size="1095"/>
+                    <dock id="" activePageId="Viewer.1">
+                        <page id="uk.co.thefoundry.scripteditor.1"/>
+                        <page id="Viewer.1"/>
+                    </dock>
+                    <split size="795"/>
+                    <dock id="" activePageId="DAG.1" focus="true">
+                        <page id="DAG.1"/>
+                    </dock>
+                </splitter>
+                <split size="174"/>
+                <dock id="" activePageId="Curve Editor.1">
+                    <page id="Curve Editor.1"/>
+                    <page id="DopeSheet.1"/>
+                </dock>
+            </splitter>
+            <split size="615"/>
+            <dock id="" activePageId="Properties.1">
+                <page id="Properties.1"/>
+                <page id="uk.co.thefoundry.backgroundrenderview.1"/>
+            </dock>
+        </splitter>
+    </window>
+</layout>
+}
+Root {
+ inputs 0
+ name Y:/cst/shows/108/sample.nk
+ project_directory "\[file dirname \[value name]]"
+ format "640 480 0 0 640 480 1 "
+ proxy_type scale
+ proxy_format "640 480 0 0 640 480 1 "
+ colorManagement OCIO
+ OCIO_config aces_1.2
+ defaultViewerLUT "OCIO LUTs"
+ workingSpaceLUT scene_linear
+ monitorLut "sRGB (ACES)"
+ monitorOutLUT "sRGB (ACES)"
+ int8Lut matte_paint
+ int16Lut texture_paint
+ logLut compositing_log
+ floatLut scene_linear
+ views_button false
+ free_type_system_fonts false
+}
+BackdropNode {
+ inputs 0
+ name BackdropNode2
+ tile_color 0x42424201
+ label Output
+ note_font_size 42
+ note_font_color 0xffffffff
+ xpos -292
+ ypos 391
+ bdwidth 740
+ bdheight 572
+ z_order -1
+}
+BackdropNode {
+ inputs 0
+ name BackdropNode1
+ tile_color 0x3a2a1aff
+ label <b>RENDER</b>
+ note_font_size 22
+ xpos 0
+ bdwidth 200
+ bdheight 224
+}
+Read {
+ inputs 0
+ file_type exr
+ file Y:/cst/shows/108/STU108_005_0020/out/STU108_005_0020_comp_v002/render/STU108_005_0020_comp_v002.%04d.exr
+ first 1001
+ last 1045
+ origfirst 1001
+ origlast 1045
+ on_error black
+ name Read1
+ label STU108_005_0020_comp_v002
+ xpos 60
+ ypos 90
+}
+Dot {
+ name Dot1
+ note_font "Helvetica Bold"
+ note_font_size 24
+ note_font_color 0xff
+ xpos 94
+ ypos 289
+}
+Dot {
+ name Dot_MP4
+ label Mp4
+ note_font "Helvetica Bold"
+ note_font_size 24
+ note_font_color 0xff
+ xpos 94
+ ypos 479
+}
+Reformat {
+ format "1920 1080 0 0 1920 1080 1 HD_1080p"
+ resize fit
+ name Reformat_HD
+ xpos 60
+ ypos 579
+}
+Transform {
+ scale 1.124
+ center {960 540}
+ shutteroffset centred
+ name Transform1
+ note_font Helvetica
+ xpos 60
+ ypos 615
+}
+Crop {
+ box {0 0 1920 1080}
+ name Crop_HD
+ xpos 60
+ ypos 689
+}
+set N755c4400 [stack 0]
+push $N755c4400
+Write {
+ file Y:/cst/shows/108/STU108_005_0020/Out/STU108_005_0020_comp_v002/review/STU108_005_0020_comp_v002.mp4
+ file_type mov
+ mov64_format "mp4 (MP4 (MPEG-4 Part 14))"
+ mov64_codec h264
+ mov_h264_codec_profile "High 4:2:0 8-bit"
+ mov64_pixel_format {{0}}
+ mov64_quality Custom
+ mov64_fast_start true
+ mov64_write_timecode true
+ mov64_gop_size 12
+ mov64_b_frames 0
+ mov64_bitrate 15000
+ mov64_bitrate_tolerance 0
+ mov64_quality_min 1
+ mov64_quality_max 3
+ colorspace color_picking
+ create_directories true
+ checkHashOnRead false
+ ocioColorspace scene_linear
+ display ACES
+ view sRGB
+ name Write_MP4
+ xpos 60
+ ypos 769
+}
+Viewer {
+ inputs 2
+ frame 1
+ frame_range 1-100
+ viewerProcess "sRGB (ACES)"
+ monitorOutNDISenderName "NukeX - untitled - Viewer1"
+ name Viewer1
+ note_font Helvetica
+ selected true
+ xpos -152
+ ypos 905
+}

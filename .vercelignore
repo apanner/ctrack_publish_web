@@ -1,0 +1,28 @@
+# Vercel only builds web/ — exclude engine, installers, and bundled runtimes
+engine/
+release/
+installer/
+scripts/
+packages/
+.cache/
+.turbo/
+coverage/
+**/__pycache__/
+**/*.pyc
+**/.venv/
+**/*.exe
+**/*.zip
+**/*.7z
+
+# Dependencies and build outputs (rebuilt on Vercel)
+**/node_modules/
+web/dist/
+engine/dist/
+engine/dist-bundle/
+engine/runtime/
+
+# Local secrets
+.env
+.env.*
+!.env.example
+!**/.env.example

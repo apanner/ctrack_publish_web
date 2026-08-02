@@ -1,0 +1,26 @@
+﻿{
+    "product":  "ctrack-engine",
+    "channel":  "stable",
+    "version":  "0.1.2",
+    "publishedAt":  "2026-06-01T07:13:49.8737864Z",
+    "artifacts":  {
+                      "engineSetup":  {
+                                          "fileName":  "CTrackPublishEngine-Setup.exe",
+                                          "sha256":  "e6d63e1f25e6a6ee91df5978c21a3513a02a3e348702052a43dd62f9eb45bba8",
+                                          "sizeBytes":  303182764
+                                      },
+                      "nukeSetup":  {
+                                        "fileName":  "CTrackNuke-Setup.exe",
+                                        "sha256":  "f3a9d416f8021b390cada739e7abe5f151c0351ff61990056a52a58633b5ba09",
+                                        "sizeBytes":  1676263
+                                    },
+                      "nukePluginSetup":  {
+                                              "fileName":  "CTrackNuke-Setup.exe",
+                                              "sha256":  "f3a9d416f8021b390cada739e7abe5f151c0351ff61990056a52a58633b5ba09",
+                                              "sizeBytes":  1676263
+                                          }
+                  },
+    "releaseNotes":  "Dual storage: MinIO+S3 test API, web diagnostics, credential fix",
+    "breaking":  false
+}
+

@@ -1,0 +1,25 @@
+# C-Track Publish Web Plan
+
+## Overview
+This plan focuses on converting EXR files to MOV, compressing them with H.265, and uploading them to both AWS S3 and a MinIO local server.
+
+## Tech Stack
+- EXR Decoding: exrs-wasm (WebAssembly)
+- Video Encoding: videoconverter.js (FFmpeg in browser)
+- Codec: H.265
+- Backend Integration: Connect to existing web-based database
+- Storage: AWS S3 + MinIO local server
+
+## Workflow Steps
+1. User uploads EXR file via web app.
+2. EXR file is decoded in the browser using exrs-wasm.
+3. Frames are processed, and the video is encoded using videoconverter.js with H.265 compression.
+4. Once processed, the file is uploaded to:
+   - AWS S3 bucket
+   - MinIO local server
+5. Database is updated with file metadata (e.g., link locations, processing details).
+
+## Integration Notes
+- Ensure both AWS SDK (or S3 API) and MinIO API are configured.
+- Test H.265 encoding for performance and file size.
+- Ensure the database schema supports EXR/MOV metadata links.

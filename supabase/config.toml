@@ -1,0 +1,16 @@
+# Supabase CLI config for ctrack_v0 (project czwfeqheduofviockrab)
+
+project_id = "czwfeqheduofviockrab"
+
+[functions.engine-pair-init]
+verify_jwt = false
+
+[functions.engine-pair-complete]
+verify_jwt = false
+
+[functions.engine-download]
+verify_jwt = false
+import_map = "./functions/engine-download/deno.json"
+
+[functions.engine-releases-latest]
+verify_jwt = false
