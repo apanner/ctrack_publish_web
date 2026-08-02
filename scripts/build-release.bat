@@ -79,8 +79,21 @@ if /i "%CTRACK_BUNDLE_ENV%"=="1" (
 
 echo [ctrack] npm install production deps in release\engine ...
 pushd "%OUT%\engine"
-call npm install --omit=dev
+call npm install --omit=dev --ignore-scripts
 if errorlevel 1 (
+  popd
+  exit /b 1
+)
+if exist "..\..\node_modules\better-sqlite3" (
+  echo [ctrack] Copying prebuilt better-sqlite3 from workspace node_modules...
+  if not exist "node_modules" mkdir "node_modules"
+  xcopy /E /I /Y "..\..\node_modules\better-sqlite3" "node_modules\better-sqlite3\" >nul
+) else if exist "..\..\engine\node_modules\better-sqlite3" (
+  echo [ctrack] Copying prebuilt better-sqlite3 from engine\node_modules...
+  if not exist "node_modules" mkdir "node_modules"
+  xcopy /E /I /Y "..\..\engine\node_modules\better-sqlite3" "node_modules\better-sqlite3\" >nul
+) else (
+  echo [ctrack] ERROR: better-sqlite3 not found. Run npm install at repo root before release build.
   popd
   exit /b 1
 )
