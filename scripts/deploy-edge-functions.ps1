@@ -94,9 +94,13 @@ foreach ($name in $Function) {
   Write-Host "`[deploy-edge`] Deploying $name ..."
   Push-Location $workdir
   try {
-    npx --yes supabase@latest functions deploy $name `
-      --project-ref $ProjectRef `
-      --no-verify-jwt
+    $deployArgs = @(
+      "functions", "deploy", $name,
+      "--project-ref", $ProjectRef,
+      "--no-verify-jwt",
+      "--use-api"
+    )
+    npx --yes supabase@latest @deployArgs
     if ($LASTEXITCODE -ne 0) {
       throw "supabase functions deploy failed for $name (exit $LASTEXITCODE)"
     }
