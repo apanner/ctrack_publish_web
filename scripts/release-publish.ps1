@@ -125,7 +125,7 @@ if (-not (Test-Path -LiteralPath $nukeRoot)) {
   }
 }
 
-Write-Host "[release-publish] Syncing version.json into build artifacts..."
+Write-Host "`[release-publish`] Syncing version.json into build artifacts..."
 & (Join-Path $repoRoot "scripts\sync-version.ps1")
 if (-not $?) {
   throw "sync-version.ps1 failed."
@@ -142,13 +142,13 @@ if ($releaseVersion -notmatch "^\d+\.\d+\.\d+$") {
 }
 
 if (-not $SkipBuild) {
-  Write-Host "[release-publish] Building engine installer..."
+  Write-Host "`[release-publish`] Building engine installer..."
   & (Join-Path $repoRoot "scripts\build-installer.bat")
   if ($LASTEXITCODE -ne 0) {
     throw "Engine installer build failed."
   }
 
-  Write-Host "[release-publish] Building Nuke installer..."
+  Write-Host "`[release-publish`] Building Nuke installer..."
   & (Join-Path $nukeRoot "installer\build-installer.bat")
   if ($LASTEXITCODE -ne 0) {
     throw "Nuke installer build failed."
@@ -198,7 +198,7 @@ $gitSha = if ([string]::IsNullOrWhiteSpace($env:GITHUB_SHA)) {
   $env:GITHUB_SHA
 }
 
-Write-Host "[release-publish] Publishing GitHub Release $releaseTag on $githubRepo ..."
+Write-Host "`[release-publish`] Publishing GitHub Release $releaseTag on $githubRepo ..."
 
 $releaseView = gh release view $releaseTag --repo $githubRepo 2>$null
 if ($LASTEXITCODE -ne 0) {
@@ -211,7 +211,7 @@ if ($LASTEXITCODE -ne 0) {
     throw "gh release create failed for tag $releaseTag"
   }
 } else {
-  Write-Host "[release-publish] Release $releaseTag already exists — uploading/replacing assets."
+  Write-Host "`[release-publish`] Release $releaseTag already exists - uploading/replacing assets."
 }
 
 $uploadPaths = @(
@@ -258,6 +258,6 @@ $supabaseHeaders = @{
 $supabaseUri = $supabaseUrl.TrimEnd("/") + "/rest/v1/engine_releases?on_conflict=version"
 $response = Invoke-RestMethod -Method Post -Uri $supabaseUri -Headers $supabaseHeaders -Body $supabaseInsertBody
 
-Write-Host "[release-publish] Published version $releaseVersion to GitHub Release $releaseTag"
-Write-Host "[release-publish] Repository: https://github.com/$githubRepo/releases/tag/$releaseTag"
-Write-Host "[release-publish] Upserted engine_releases row count: $($response.Count)"
+Write-Host "`[release-publish`] Published version $releaseVersion to GitHub Release $releaseTag"
+Write-Host "`[release-publish`] Repository: https://github.com/$githubRepo/releases/tag/$releaseTag"
+Write-Host "`[release-publish`] Upserted engine_releases row count: $($response.Count)"

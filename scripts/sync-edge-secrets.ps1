@@ -73,9 +73,9 @@ if ($hasAws) {
   foreach ($name in $optionalAws) {
     $secretLines += "$name=$([Environment]::GetEnvironmentVariable($name))"
   }
-  Write-Host "[edge-secrets] Including legacy AWS S3 secrets (older releases on S3)"
+  Write-Host "`[edge-secrets`] Including legacy AWS S3 secrets (older releases on S3)"
 } else {
-  Write-Host "[edge-secrets] Skipping AWS S3 secrets (GitHub Releases is the primary installer host)"
+  Write-Host "`[edge-secrets`] Skipping AWS S3 secrets (GitHub Releases is the primary installer host)"
 }
 
 $optionalHybrid = @(
@@ -98,9 +98,9 @@ try {
   [System.IO.File]::WriteAllText($tempFile, ($secretLines -join [Environment]::NewLine), $utf8NoBom)
 
   $workdir = (Resolve-Path -LiteralPath $SupabaseWorkdir).Path
-  Write-Host "[edge-secrets] Project ref: $ProjectRef"
-  Write-Host "[edge-secrets] Setting GitHub release token + Supabase service role"
-  Write-Host "[edge-secrets] Note: SUPABASE_URL is auto-injected by Supabase"
+  Write-Host "`[edge-secrets`] Project ref: $ProjectRef"
+  Write-Host "`[edge-secrets`] Setting GitHub release token + Supabase service role"
+  Write-Host "`[edge-secrets`] Note: SUPABASE_URL is auto-injected by Supabase"
 
   Push-Location $workdir
   try {
@@ -112,7 +112,7 @@ try {
     Pop-Location
   }
 
-  Write-Host "[edge-secrets] Done."
+  Write-Host "`[edge-secrets`] Done."
 } finally {
   if (Test-Path -LiteralPath $tempFile) {
     Remove-Item -LiteralPath $tempFile -Force

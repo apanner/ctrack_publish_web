@@ -54,7 +54,7 @@ function Resolve-AccessToken {
   }
 
   if ($Login) {
-    Write-Host "[deploy-edge] No SUPABASE_ACCESS_TOKEN in .env - running supabase login..."
+    Write-Host "`[deploy-edge`] No SUPABASE_ACCESS_TOKEN in .env - running supabase login..."
     npx --yes supabase@latest login
     if ($LASTEXITCODE -ne 0) {
       throw "supabase login failed (exit $LASTEXITCODE)"
@@ -81,9 +81,9 @@ if (-not (Test-Path -LiteralPath $supabaseDir)) {
   throw "Supabase folder not found: $supabaseDir"
 }
 
-Write-Host "[deploy-edge] Project ref: $ProjectRef"
-Write-Host "[deploy-edge] Workdir: $workdir"
-Write-Host "[deploy-edge] Functions: $($Function -join ', ')"
+Write-Host "`[deploy-edge`] Project ref: $ProjectRef"
+Write-Host "`[deploy-edge`] Workdir: $workdir"
+Write-Host "`[deploy-edge`] Functions: $($Function -join ', ')"
 
 foreach ($name in $Function) {
   $entry = Join-Path $supabaseDir "functions\$name\index.ts"
@@ -91,7 +91,7 @@ foreach ($name in $Function) {
     throw "Function entry not found: $entry"
   }
 
-  Write-Host "[deploy-edge] Deploying $name ..."
+  Write-Host "`[deploy-edge`] Deploying $name ..."
   Push-Location $workdir
   try {
     npx --yes supabase@latest functions deploy $name `
@@ -103,11 +103,11 @@ foreach ($name in $Function) {
   } finally {
     Pop-Location
   }
-  Write-Host "[deploy-edge] OK: $name"
+  Write-Host "`[deploy-edge`] OK: $name"
 }
 
-Write-Host "[deploy-edge] All functions deployed."
-Write-Host "[deploy-edge] URLs:"
+Write-Host "`[deploy-edge`] All functions deployed."
+Write-Host "`[deploy-edge`] URLs:"
 foreach ($name in $Function) {
   Write-Host ("  https://{0}.supabase.co/functions/v1/{1}" -f $ProjectRef, $name)
 }
