@@ -28,8 +28,11 @@ $githubReleaseToken = $env:GITHUB_RELEASE_TOKEN
 if ([string]::IsNullOrWhiteSpace($githubReleaseToken)) {
   $githubReleaseToken = $env:GITHUB_TOKEN
 }
+if ([string]::IsNullOrWhiteSpace($githubReleaseToken)) {
+  $githubReleaseToken = (gh auth token 2>$null)
+}
 if (-not [string]::IsNullOrWhiteSpace($githubReleaseToken)) {
-  $secretMap["GITHUB_RELEASE_TOKEN"] = $githubReleaseToken
+  $secretMap["CTRACK_GH_TOKEN"] = $githubReleaseToken
 }
 
 $missing = @()

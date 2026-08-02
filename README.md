@@ -6,6 +6,14 @@ For the current high-level architecture and deployment summary, see [`APP_SUMMAR
 
 **What is built (detailed):** [`docs/DEVELOPMENT_STATUS.md`](docs/DEVELOPMENT_STATUS.md) — engine, tray GUI, pairing, Supabase, Nuke, known gaps.
 
+## GitHub repository
+
+**https://github.com/apanner/ctrack_publish_web**
+
+This is a **standalone repo** (not the `track` monorepo). Windows installers are built in GitHub Actions and published as [GitHub Releases](https://github.com/apanner/ctrack_publish_web/releases).
+
+Deploy docs: [`docs/DEV_AND_DEPLOY.md`](docs/DEV_AND_DEPLOY.md)
+
 ## Layout
 
 | Package | Role |

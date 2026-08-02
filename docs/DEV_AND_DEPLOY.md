@@ -166,7 +166,7 @@ Source: `ctrack_publish_web/supabase/functions/<name>/index.ts`
 | `SUPABASE_ACCESS_TOKEN` | CLI deploy (`sbp_...` from Supabase account tokens) |
 | `SUPABASE_URL` | Release upsert + edge env |
 | `SUPABASE_SERVICE_ROLE_KEY` | `engine_releases` REST upsert |
-| `GITHUB_RELEASE_TOKEN` | Optional PAT for `engine-download` edge (if repo is private). Workflow uses built-in `GITHUB_TOKEN` for `gh release`. |
+| `CTRACK_GH_TOKEN` | Optional PAT for private-repo asset downloads in edge (Actions uses built-in `GITHUB_TOKEN` for releases) |
 
 `GITHUB_TOKEN` is provided automatically in Actions (`contents: write` for creating releases).
 
