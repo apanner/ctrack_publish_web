@@ -30,7 +30,8 @@ __pycache__/
 *.py[cod]
 .venv/
 
-# Bundled runtime tools (install via engine/python/scripts/setup_oiio.py)
+# Bundled runtime tools (provisioned by npm postinstall / CI — do not commit binaries)
+engine/runtime/ffmpeg/
 engine/runtime/oiio/
 engine/runtime/ocio/aces_1.2/
 engine/runtime/python/
