@@ -1,9 +1,12 @@
-# Vercel only builds web/ — exclude engine, installers, and bundled runtimes
-engine/
-release/
-installer/
-scripts/
-packages/
+# Vercel only builds web/ — exclude repo-root engine, Nuke plugin, installers, scripts
+# Use leading "/" so patterns do NOT match web/src/components/engine/
+/engine/
+/ctrack_nuke/
+/release/
+/installer/
+/scripts/
+/packages/
+/supabase/
 .cache/
 .turbo/
 coverage/
@@ -16,10 +19,10 @@ coverage/
 
 # Dependencies and build outputs (rebuilt on Vercel)
 **/node_modules/
-web/dist/
-engine/dist/
-engine/dist-bundle/
-engine/runtime/
+/web/dist/
+/engine/dist/
+/engine/dist-bundle/
+/engine/runtime/
 
 # Local secrets
 .env
