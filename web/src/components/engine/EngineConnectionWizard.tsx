@@ -33,7 +33,7 @@ const WIZARD_STEPS: WizardStep[] = [
   {
     id: "download",
     title: "Download installer",
-    description: "Get the latest signed installer using your current login session.",
+    description: "Get the latest installer using your current login session (GitHub fallback if server unavailable).",
   },
   {
     id: "install",

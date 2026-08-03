@@ -36,7 +36,16 @@ if "%ENGINE_VER%"=="" (
   echo [ctrack] Could not read engine version from version.json
   exit /b 1
 )
+
+echo [ctrack] Signing bundled runtimes (optional)...
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0sign-release-artifacts.ps1"
+if errorlevel 1 exit /b 1
+
 "%ISCC%" /DMyAppVersion=%ENGINE_VER% "%~dp0..\installer\CTrackEngine.iss"
+if errorlevel 1 exit /b 1
+
+echo [ctrack] Signing installer output (optional)...
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0sign-windows-binary.ps1" -Path "%~dp0..\installer\output\CTrackPublishEngine-Setup.exe"
 if errorlevel 1 exit /b 1
 
 echo [ctrack] Done: installer\output\CTrackPublishEngine-Setup.exe
