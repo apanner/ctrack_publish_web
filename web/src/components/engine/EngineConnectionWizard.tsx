@@ -1,9 +1,12 @@
-import { useMemo, useState } from "react"
-import { AlertTriangle, CheckCircle2, Download, Link2, Loader2, RefreshCw, Wrench } from "lucide-react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { AlertTriangle, CheckCircle2, Download, ExternalLink, Link2, Loader2, RefreshCw, Wrench } from "lucide-react"
 import { ENGINE_BASE } from "@/lib/engine-ipc-shim"
 import {
+  buildGithubInstallerDownloadUrl,
+  buildGithubReleasePageUrl,
   openInstallerDownload,
   requestEngineInstallerDownloadUrl,
+  type InstallerDownloadSource,
 } from "@/lib/engine-installer"
 import { useEnginePairing } from "@/hooks/use-engine-pairing"
 import { useEngineRelease } from "@/hooks/use-engine-release"
@@ -61,37 +64,67 @@ async function verifyEngineHealth(): Promise<{ version?: string; activeExrBacken
 }
 
 export function EngineConnectionWizard({ onConnected }: EngineConnectionWizardProps) {
-  const [activeStepIndex, setActiveStepIndex] = useState(0)
+  const [activeStepIndex, setActiveStepIndex] = useState(1)
   const [pairToken, setPairToken] = useState<string | null>(null)
   const [pairingCode, setPairingCode] = useState<string | null>(null)
   const [downloadError, setDownloadError] = useState<string | null>(null)
+  const [downloadSource, setDownloadSource] = useState<InstallerDownloadSource | null>(null)
   const [verifyError, setVerifyError] = useState<string | null>(null)
   const [engineVersion, setEngineVersion] = useState<string | null>(null)
   const [exrBackend, setExrBackend] = useState<string | null>(null)
   const [isDownloadBusy, setIsDownloadBusy] = useState(false)
   const [isVerifyBusy, setIsVerifyBusy] = useState(false)
+  const autoDownloadAttemptedRef = useRef(false)
   const { pairStatusQuery, initializePairingMutation, completePairingMutation } = useEnginePairing({
     enabled: true,
   })
   const latestReleaseQuery = useEngineRelease({ enabled: true })
   const latestVersion = latestReleaseQuery.data?.version?.trim() ?? ""
 
+  const githubDownloadUrl = useMemo(
+    () => buildGithubInstallerDownloadUrl(latestVersion || "latest"),
+    [latestVersion]
+  )
+  const githubReleasePageUrl = useMemo(
+    () => buildGithubReleasePageUrl(latestVersion || "latest"),
+    [latestVersion]
+  )
+
   const activeStep = WIZARD_STEPS[activeStepIndex]
   const isPaired = pairStatusQuery.data?.paired ?? false
 
-  async function handleDownloadInstaller(): Promise<void> {
+  async function handleDownloadInstaller(options?: { auto?: boolean }): Promise<void> {
     try {
       setDownloadError(null)
       setIsDownloadBusy(true)
       const result = await requestEngineInstallerDownloadUrl()
+      setDownloadSource(result.source)
       openInstallerDownload(result.downloadUrl)
-      setActiveStepIndex((current) => Math.max(current, 2))
+      if (!options?.auto) {
+        setActiveStepIndex((current) => Math.max(current, 2))
+      }
     } catch (error) {
-      setDownloadError(error instanceof Error ? error.message : String(error))
+      setDownloadSource("github")
+      openInstallerDownload(githubDownloadUrl)
+      if (!options?.auto) {
+        setDownloadError(
+          error instanceof Error
+            ? `${error.message} Opened GitHub download instead.`
+            : "Server unavailable. Opened GitHub download instead."
+        )
+        setActiveStepIndex((current) => Math.max(current, 2))
+      }
     } finally {
       setIsDownloadBusy(false)
     }
   }
+
+  useEffect(() => {
+    if (autoDownloadAttemptedRef.current) return
+    if (activeStep.id !== "download") return
+    autoDownloadAttemptedRef.current = true
+    void handleDownloadInstaller({ auto: true })
+  }, [activeStep.id, latestVersion])
 
   async function handleInitPairing(): Promise<void> {
     const result = await initializePairingMutation.mutateAsync()
@@ -185,6 +218,19 @@ export function EngineConnectionWizard({ onConnected }: EngineConnectionWizardPr
                 We could not connect to your engine over localhost. This usually means the engine is not installed,
                 the tray process is not running, or localhost access is blocked.
               </p>
+              {latestVersion && (
+                <p className="rounded border border-cyan-400/30 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-200">
+                  Latest published engine: <span className="font-semibold">v{latestVersion}</span>
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={() => setActiveStepIndex(1)}
+                className="inline-flex items-center gap-2 rounded-md bg-[#0096D6] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#0096D6]/90"
+              >
+                <Download className="h-4 w-4" />
+                Download engine installer
+              </button>
               <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-amber-200">
                 <p className="font-medium">Troubleshoot quickly</p>
                 <ul className="mt-2 list-disc space-y-1 pl-5 text-xs">
@@ -199,8 +245,9 @@ export function EngineConnectionWizard({ onConnected }: EngineConnectionWizardPr
           {activeStep.id === "download" && (
             <div className="space-y-3 text-sm">
               <p className="text-gray-300">
-                Download the latest installer using your authenticated session. The download link is short-lived and
-                generated by the `engine-download` edge function.
+                The installer should open automatically. If your browser blocked the download, use the buttons below.
+                We try the authenticated edge function first, then fall back to GitHub Releases when the server is
+                unavailable.
               </p>
               {latestVersion && (
                 <p className="rounded border border-cyan-400/30 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-200">
@@ -212,18 +259,45 @@ export function EngineConnectionWizard({ onConnected }: EngineConnectionWizardPr
               )}
               {latestReleaseQuery.isError && (
                 <p className="rounded border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
-                  Could not load release metadata. You can still try downloading the latest installer.
+                  Release metadata server is unavailable. Use the direct GitHub download link below.
                 </p>
               )}
-              <button
-                type="button"
-                onClick={() => void handleDownloadInstaller()}
-                disabled={isDownloadBusy}
-                className="inline-flex items-center gap-2 rounded-md bg-[#0096D6] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#0096D6]/90 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {isDownloadBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                Download latest installer
-              </button>
+              {downloadSource && (
+                <p className="rounded border border-emerald-400/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
+                  Download started via {downloadSource === "edge" ? "authenticated edge function" : "GitHub Releases"}.
+                </p>
+              )}
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void handleDownloadInstaller()}
+                  disabled={isDownloadBusy}
+                  className="inline-flex items-center gap-2 rounded-md bg-[#0096D6] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#0096D6]/90 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isDownloadBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                  Download latest installer
+                </button>
+                <a
+                  href={githubDownloadUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 rounded-md border border-white/20 bg-white/5 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  Direct GitHub download
+                </a>
+              </div>
+              <p className="text-xs text-gray-400">
+                Fallback URL:{" "}
+                <a
+                  href={githubReleasePageUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-cyan-300 underline-offset-2 hover:underline"
+                >
+                  {githubReleasePageUrl}
+                </a>
+              </p>
               {downloadError && (
                 <p className="rounded border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-200">{downloadError}</p>
               )}

@@ -8,19 +8,52 @@ export interface EngineReleaseInfo {
   breaking?: boolean
 }
 
+export type InstallerDownloadSource = "edge" | "github"
+
 export interface InstallerDownloadResult {
   downloadUrl: string
   backupDownloadUrl?: string
   version: string
   sha256?: string
   sizeBytes?: number
+  source: InstallerDownloadSource
 }
+
+const DEFAULT_GITHUB_REPO = "apanner/ctrack_publish_web"
+const DEFAULT_INSTALLER_ASSET = "CTrackPublishEngine-Setup.exe"
 
 function resolveSupabaseUrl(): string {
   const fromEnv = import.meta.env.VITE_SUPABASE_URL?.trim()
   if (fromEnv) return fromEnv
   const fromClient = (supabase as unknown as { supabaseUrl?: string }).supabaseUrl?.trim()
   return fromClient ?? ""
+}
+
+export function resolveGithubRepo(): string {
+  return import.meta.env.VITE_GITHUB_REPO?.trim() || DEFAULT_GITHUB_REPO
+}
+
+export function resolveInstallerAssetName(): string {
+  return import.meta.env.VITE_ENGINE_INSTALLER_ASSET?.trim() || DEFAULT_INSTALLER_ASSET
+}
+
+export function buildGithubInstallerDownloadUrl(version = "latest"): string {
+  const repo = resolveGithubRepo()
+  const asset = resolveInstallerAssetName()
+  if (!version || version === "latest") {
+    return `https://github.com/${repo}/releases/latest/download/${asset}`
+  }
+  const tag = version.startsWith("v") ? version : `v${version}`
+  return `https://github.com/${repo}/releases/download/${tag}/${asset}`
+}
+
+export function buildGithubReleasePageUrl(version = "latest"): string {
+  const repo = resolveGithubRepo()
+  if (!version || version === "latest") {
+    return `https://github.com/${repo}/releases/latest`
+  }
+  const tag = version.startsWith("v") ? version : `v${version}`
+  return `https://github.com/${repo}/releases/tag/${tag}`
 }
 
 export async function fetchLatestEngineRelease(channel = "stable"): Promise<EngineReleaseInfo | null> {
@@ -74,9 +107,9 @@ export async function fetchLatestEngineRelease(channel = "stable"): Promise<Engi
   }
 }
 
-export async function requestEngineInstallerDownloadUrl(
-  channel = "stable",
-  version = "latest"
+async function requestEdgeInstallerDownloadUrl(
+  channel: string,
+  version: string
 ): Promise<InstallerDownloadResult> {
   const supabaseUrl = resolveSupabaseUrl()
   if (!supabaseUrl) {
@@ -96,7 +129,7 @@ export async function requestEngineInstallerDownloadUrl(
     body: JSON.stringify({ product: "engine", version, channel }),
   })
   if (response.status === 404) {
-    throw new Error("No engine release published yet. Ask your admin to run the release pipeline.")
+    throw new Error("No engine release published yet.")
   }
   if (!response.ok) {
     const detail = await response.text().catch(() => "")
@@ -128,6 +161,26 @@ export async function requestEngineInstallerDownloadUrl(
     version: payload.version ?? version,
     sha256: payload.sha256,
     sizeBytes: payload.sizeBytes,
+    source: "edge",
+  }
+}
+
+export async function requestEngineInstallerDownloadUrl(
+  channel = "stable",
+  version = "latest"
+): Promise<InstallerDownloadResult> {
+  try {
+    return await requestEdgeInstallerDownloadUrl(channel, version)
+  } catch (edgeError) {
+    const latest = await fetchLatestEngineRelease(channel).catch(() => null)
+    const resolvedVersion = latest?.version ?? (version === "latest" ? "latest" : version)
+    return {
+      downloadUrl: buildGithubInstallerDownloadUrl(resolvedVersion),
+      version: resolvedVersion === "latest" ? (latest?.version ?? "latest") : resolvedVersion,
+      source: "github",
+      sha256: undefined,
+      sizeBytes: undefined,
+    }
   }
 }
 

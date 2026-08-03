@@ -200,8 +200,16 @@ $gitSha = if ([string]::IsNullOrWhiteSpace($env:GITHUB_SHA)) {
 
 Write-Host "`[release-publish`] Publishing GitHub Release $releaseTag on $githubRepo ..."
 
-$releaseView = gh release view $releaseTag --repo $githubRepo 2>$null
-if ($LASTEXITCODE -ne 0) {
+$releaseExists = $false
+$priorErrorPreference = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
+gh release view $releaseTag --repo $githubRepo 2>&1 | Out-Null
+if ($LASTEXITCODE -eq 0) {
+  $releaseExists = $true
+}
+$ErrorActionPreference = $priorErrorPreference
+
+if (-not $releaseExists) {
   gh release create $releaseTag `
     --repo $githubRepo `
     --title $releaseTitle `
