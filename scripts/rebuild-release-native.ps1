@@ -21,10 +21,10 @@ $engineDir = Join-Path $releaseRoot "engine"
 $betterSqliteDir = Join-Path $engineDir "node_modules\better-sqlite3"
 
 if (-not (Test-Path $nodeExe)) {
-  throw "Missing embedded node.exe at $nodeExe — run scripts\embed-node.ps1 first."
+  throw ('Missing embedded node.exe at ' + $nodeExe + ' - run scripts\embed-node.ps1 first.')
 }
 if (-not (Test-Path $betterSqliteDir)) {
-  throw "Missing better-sqlite3 at $betterSqliteDir — run scripts\build-release.bat first."
+  throw ('Missing better-sqlite3 at ' + $betterSqliteDir + ' - run scripts\build-release.bat first.')
 }
 
 $nodeVersion = & $nodeExe -p "process.versions.node"
