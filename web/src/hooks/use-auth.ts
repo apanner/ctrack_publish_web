@@ -91,6 +91,15 @@ export function useAuth() {
         if (session?.user) setLoading(profileLoading)
     }, [session, profileData, profileLoading])
 
+    // Hydrate session from storage on first load (Vercel / browser refresh).
+    useEffect(() => {
+        void supabase.auth.getSession().then(({ data: { session: stored } }) => {
+            if (stored) {
+                queryClient.setQueryData(queryKeys.auth.session, stored)
+            }
+        })
+    }, [queryClient])
+
     // Listen to auth changes
     useEffect(() => {
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {

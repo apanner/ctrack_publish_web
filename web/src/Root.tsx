@@ -165,7 +165,7 @@ function RootApp() {
     )
   }
 
-  if (phase === "app" && isAuthenticated && isEngineReachable === false) {
+  if (phase === "app" && isEngineReachable === false) {
     return (
       <EngineConnectionGate
         onConnected={() => {

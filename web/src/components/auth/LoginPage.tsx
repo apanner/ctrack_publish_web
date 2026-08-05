@@ -37,9 +37,7 @@ export function LoginPage() {
                 console.log("[LoginPage] Opening OAuth URL in system browser via IPC:", url)
                 await w.ipcRenderer.invoke("open-external-url", url)
             } else {
-                // Fallback: if IPC not available (dev mode), try window.open but warn
-                console.warn("[LoginPage] IPC not available, using window.open fallback")
-                window.open(url, "_blank", "noopener,noreferrer")
+                window.location.assign(url)
             }
         } catch (err) {
             const message = err instanceof Error ? err.message : String(err)
