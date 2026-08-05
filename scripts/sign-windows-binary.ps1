@@ -66,7 +66,7 @@ function Test-CodeSigningConfigured {
 }
 
 if (-not (Test-CodeSigningConfigured)) {
-  Write-Host "[codesign] Skipping — set CTRACK_CODESIGN_PFX (or _BASE64) and CTRACK_CODESIGN_PASSWORD to enable signing."
+  Write-Host '[codesign] Skipping — set CTRACK_CODESIGN_PFX (or _BASE64) and CTRACK_CODESIGN_PASSWORD to enable signing.'
   exit 0
 }
 
@@ -83,11 +83,11 @@ foreach ($target in $Path) {
   if ([string]::IsNullOrWhiteSpace($target)) { continue }
   $resolved = Resolve-Path -LiteralPath $target -ErrorAction SilentlyContinue
   if (-not $resolved) {
-    Write-Warning "[codesign] File not found, skipping: $target"
+    Write-Warning ('[codesign] File not found, skipping: ' + $target)
     continue
   }
 
-  Write-Host "[codesign] Signing $($resolved.Path) ..."
+  Write-Host ('[codesign] Signing ' + $resolved.Path + ' ...')
   & $signTool sign `
     /f $pfxPath `
     /p $password `
@@ -103,7 +103,8 @@ foreach ($target in $Path) {
 }
 
 if ($signed -eq 0) {
-  throw "[codesign] No files were signed."
+  Write-Host '[codesign] No files were signed (none matched or all missing).'
+  exit 0
 }
 
-Write-Host "[codesign] Signed $signed file(s)."
+Write-Host ('[codesign] Signed ' + $signed + ' file(s).')

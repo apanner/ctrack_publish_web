@@ -22,7 +22,7 @@ $engineSetup = Join-Path $repoRoot "installer\output\CTrackPublishEngine-Setup.e
 if (Test-Path $engineSetup) { $targets += $engineSetup }
 
 if ($targets.Count -eq 0) {
-  Write-Host "[codesign] No release artifacts found to sign."
+  Write-Host '[codesign] No release artifacts found to sign.'
   exit 0
 }
 
