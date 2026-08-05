@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react"
 import App from "./App"
 import { FirstRunSetup } from "@/components/setup/FirstRunSetup"
-import { EngineConnectionWizard } from "@/components/engine/EngineConnectionWizard"
+import { EngineConnectionGate } from "@/components/engine/EngineConnectionGate"
 import { LinkEnginePage } from "@/pages/LinkEnginePage"
+import { hasLocalNetworkAccessFlag, probeEngineConnection } from "@/lib/engine-connection"
 import { initializeSupabase, supabase } from "@/lib/supabase"
 
 const ENGINE_BASE =
@@ -36,17 +37,9 @@ function RootApp() {
     }
 
     async function probeEngineReachability(): Promise<boolean> {
-      try {
-        const healthRes = await fetch(`${ENGINE_BASE}/health`, {
-          signal: AbortSignal.timeout(5_000),
-          cache: "no-store",
-        })
-        if (!healthRes.ok) return false
-        const health = (await healthRes.json()) as { status?: string; pythonReady?: boolean }
-        return health.status === "ok" && health.pythonReady === true
-      } catch {
-        return false
-      }
+      if (!hasLocalNetworkAccessFlag()) return false
+      const probe = await probeEngineConnection()
+      return probe.online
     }
 
     async function boot() {
@@ -174,7 +167,7 @@ function RootApp() {
 
   if (phase === "app" && isAuthenticated && isEngineReachable === false) {
     return (
-      <EngineConnectionWizard
+      <EngineConnectionGate
         onConnected={() => {
           setIsEngineReachable(true)
         }}
