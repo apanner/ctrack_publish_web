@@ -116,10 +116,13 @@ popd
 
 echo [ctrack] Embedding portable Python runtime...
 if /i "%INSTALLER_BUILD%"=="1" (
-  echo [ctrack] Installer build: media pack ^(FFmpeg/OIIO/OCIO^) excluded — downloaded on first transcode.
+  echo [ctrack] Installer build: bundling Python + FFmpeg/OIIO/OCIO media runtime...
+  set "CTRACK_SKIP_POSTINSTALL_RUNTIME="
   if exist "engine\runtime\python\python.exe" (
     if not exist "%OUT%\engine\runtime" mkdir "%OUT%\engine\runtime"
-    if exist "engine\runtime\python" xcopy /E /I /Y "engine\runtime\python" "%OUT%\engine\runtime\python\" >nul
+    xcopy /E /I /Y "engine\runtime\python" "%OUT%\engine\runtime\python\" >nul
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0ensure-engine-runtime.ps1" -TargetRoot "%OUT%\engine" -Provision
+    if errorlevel 1 exit /b 1
   ) else (
     powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0build-python-runtime.ps1"
     if errorlevel 1 exit /b 1

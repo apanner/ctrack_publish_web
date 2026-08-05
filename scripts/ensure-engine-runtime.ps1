@@ -4,12 +4,13 @@
 param(
   [Parameter(Mandatory = $false)]
   [string]$TargetRoot = "",
-  [switch]$Force
+  [switch]$Force,
+  [switch]$Provision
 )
 
 $ErrorActionPreference = "Stop"
 
-if ($env:CTRACK_SKIP_POSTINSTALL_RUNTIME -eq '1') {
+if ($env:CTRACK_SKIP_POSTINSTALL_RUNTIME -eq '1' -and -not $Provision) {
   Write-Host '[ctrack] Skipping media runtime download (CTRACK_SKIP_POSTINSTALL_RUNTIME=1).'
   exit 0
 }

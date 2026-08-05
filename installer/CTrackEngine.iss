@@ -51,7 +51,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 [Messages]
 ; Professional VFX pipeline tone — matches CTrack web shell (dark / teal accents)
 english.WelcomeLabel1=Welcome to the [name] Setup Wizard.%n%nThis installs the local publish engine for CTrack: transcoding, staging, job queue, object storage upload, and pipeline hooks aligned with review and delivery workflows common in VFX and episodic production.
-english.WelcomeLabel2=Click Next to continue.%n%nThe core installer includes Node and portable Python. FFmpeg, OpenImageIO, and OCIO download on first transcode, or select the optional full media pack for offline sites.
+english.WelcomeLabel2=Click Next to continue.%n%nThis installer includes Node, portable Python, FFmpeg, OpenImageIO (oiiotool), and OCIO configs — ready for EXR review and MP4 publish without extra downloads.
 
 english.FinishedLabel=Setup has installed [name] on this workstation.%n%nFrom the Start menu, run Start CTrack Engine to launch the system tray host (engine API on 127.0.0.1:7777). Sign in opens your browser to pair this workstation. Then open the hosted CTrack Publish web app.
 
@@ -61,11 +61,9 @@ Source: "..\release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs cr
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut for CTrack Publish Engine"; GroupDescription: "Additional shortcuts:"; Flags: unchecked
 Name: "firewall"; Description: "Re-apply Windows Firewall loopback rule for port 7777 (usually added automatically)"; GroupDescription: "Network:"; Flags: unchecked
-Name: "fullmedia"; Description: "Include FFmpeg, OpenImageIO, and OCIO in this install (offline / air-gapped sites)"; GroupDescription: "Media runtime:"; Flags: unchecked
 
 [Run]
 Filename: "{cmd}"; Parameters: "/C netsh advfirewall firewall add rule name=""CTrack Engine API (loopback 7777)"" dir=in action=allow protocol=TCP localip=127.0.0.1 localport=7777 profile=private,domain"; Flags: runhidden
-Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\scripts\download-media-pack.ps1"" -TargetRoot ""{app}\engine"""; Flags: runhidden; Tasks: fullmedia
 Filename: "{sys}\wscript.exe"; Parameters: "//nologo ""{app}\{#MyTrayVbs}"""; Description: "Start CTrack Engine in the system tray"; Flags: postinstall nowait skipifsilent
 
 [Icons]

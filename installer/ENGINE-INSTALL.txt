@@ -9,8 +9,10 @@ The installer includes the engine runtime:
   - portable Python under engine\runtime\python
   - Python media packages (opencv-python-headless, ffmpeg-python)
   - FFmpeg under engine\runtime\ffmpeg
+  - OpenImageIO (oiiotool) under engine\runtime\oiio
+  - OCIO configs under engine\runtime\ocio
 
-Users should not install Python, pip, FFmpeg, or Python modules manually.
+Users should not install Python, pip, FFmpeg, OpenImageIO, OCIO, or Python modules manually.
 
 Configuration
 -------------

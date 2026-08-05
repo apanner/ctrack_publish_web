@@ -10,7 +10,7 @@ import { promisify } from "node:util"
 import express, { type Request, type Response, type NextFunction } from "express"
 import cors from "cors"
 import { loadEnv } from "./env.js"
-import { getEngineRoot, getUserDataDir } from "./paths.js"
+import { getEngineRoot, getInstallRoot, getUserDataDir } from "./paths.js"
 import {
   SETUP_ENV_KEYS,
   getUserEnvPath,
@@ -105,10 +105,6 @@ const STAGING_PATH = path.join(getUserDataDir(), "staging.json")
 const queueManager = new QueueManager()
 let s3Manager = new S3Manager()
 const pythonManager = new PythonManager()
-
-function getInstallRoot(): string {
-  return path.resolve(getEngineRoot(), "..")
-}
 
 function resolveGuiPythonExe(installRoot: string): string {
   const candidates = [
@@ -1408,7 +1404,16 @@ export function startEngine(): Promise<http.Server> {
         void (async () => {
           await new Promise((r) => setTimeout(r, 2500))
           try {
-            const status = await fetchEngineStatus(pythonManager, { rescan: true })
+            let status = await fetchEngineStatus(pythonManager, { rescan: true })
+            if (status.missing.includes("ffmpeg")) {
+              console.log("[ctrack-engine] Media runtime missing — auto-provisioning FFmpeg/OIIO/OCIO...")
+              try {
+                await ensureMediaRuntime(getInstallRoot())
+                status = await fetchEngineStatus(pythonManager, { rescan: true })
+              } catch (provisionErr) {
+                console.warn("[ctrack-engine] Media runtime auto-provision failed:", provisionErr)
+              }
+            }
             const n = status.nukeInstallations?.length ?? 0
             console.log(
               `[ctrack-engine] tools: EXR=${status.activeExrBackend ?? "none"} nuke=${n} install(s) missing=${status.missing.join(",") || "none"}`

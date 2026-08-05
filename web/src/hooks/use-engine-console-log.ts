@@ -42,7 +42,7 @@ export function useEngineConsoleLog(engineHealth: EngineHealthState): void {
 
     if (engineHealth.missingDependencies.length > 0) {
       addLog("warn", `[ENGINE] Missing tools: ${engineHealth.missingDependencies.join(", ")}`)
-      addLog("info", "[ENGINE] Run: npm install (provisions FFmpeg/OIIO under engine/runtime)")
+      addLog("info", "[ENGINE] Engine will download FFmpeg/OIIO/OCIO automatically on startup or first publish")
     } else {
       addLog("info", "[ENGINE] Dependencies ready (FFmpeg, Python sidecar, runtime tools)")
     }

@@ -70,7 +70,7 @@ export async function ensureMediaRuntime(installRoot: string): Promise<{
       : "powershell.exe"
     const child = spawn(
       exe,
-      ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ps1, "-TargetRoot", engineRoot],
+      ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ps1, "-TargetRoot", engineRoot, "-Provision"],
       { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] }
     )
     let stderr = ""

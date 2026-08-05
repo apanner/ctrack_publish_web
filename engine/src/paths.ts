@@ -15,6 +15,11 @@ export function getEngineRoot(): string {
   return path.resolve(fromDist)
 }
 
+/** Install root (parent of `engine/` — contains scripts, tray launchers). */
+export function getInstallRoot(): string {
+  return path.resolve(getEngineRoot(), "..")
+}
+
 export function getUserDataDir(): string {
   const base = path.join(os.homedir(), ".ctrack-engine")
   fs.mkdirSync(base, { recursive: true })

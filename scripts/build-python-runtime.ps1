@@ -23,9 +23,9 @@ if ($LASTEXITCODE -ne 0) { throw "provision-gui-python.ps1 failed" }
 Write-Host "[ctrack] Embedding FFmpeg, OpenImageIO, OCIO..."
 $ensureScript = Join-Path $PSScriptRoot "ensure-engine-runtime.ps1"
 if ($Force) {
-  & $ensureScript -TargetRoot $releaseEngine -Force
+  & $ensureScript -TargetRoot $releaseEngine -Force -Provision
 } else {
-  & $ensureScript -TargetRoot $releaseEngine
+  & $ensureScript -TargetRoot $releaseEngine -Provision
 }
 if ($LASTEXITCODE -ne 0) { throw "ensure-engine-runtime.ps1 failed" }
 

@@ -5,6 +5,8 @@ import { randomBytes } from "node:crypto"
 import { type DBJob, type DBJobEvent, type DBJobEventInput, QueueManager } from "./queue-manager.js"
 import { PythonManager } from "./python-manager.js"
 import { addJobAndEmit, updateJobAndEmit } from "./queue-events.js"
+import { ensureMediaRuntime } from "./runtime-ensure.js"
+import { getInstallRoot } from "./paths.js"
 
 export interface PublishEnqueueBody {
   file_path: string
@@ -169,6 +171,7 @@ export async function headlessProcessJob(
     message: "Headless transcode started",
   })
   try {
+    await ensureMediaRuntime(getInstallRoot())
     const outputDir = path.join(os.tmpdir(), "ctrack-publish-review")
     fs.mkdirSync(outputDir, { recursive: true })
     const inputPath = toSequencePatternIfNeeded(job.file_path)

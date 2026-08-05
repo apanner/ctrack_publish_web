@@ -16,6 +16,6 @@ if ($TargetRoot) {
   $engineRoot = Join-Path $repoRoot "engine"
 }
 
-& (Join-Path $PSScriptRoot "ensure-engine-runtime.ps1") -TargetRoot $engineRoot @PSBoundParameters
+& (Join-Path $PSScriptRoot "ensure-engine-runtime.ps1") -TargetRoot $engineRoot -Provision @PSBoundParameters
 
 Write-Host "[ctrack] Media pack ready under $engineRoot\runtime"
