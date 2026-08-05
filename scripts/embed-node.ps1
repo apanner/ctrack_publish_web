@@ -5,10 +5,10 @@
 
   Usage (from repo root):
     powershell -ExecutionPolicy Bypass -File scripts\embed-node.ps1
-    powershell -File scripts\embed-node.ps1 -Version 22.14.0
+    powershell -File scripts\embed-node.ps1 -Version 20.18.3
 #>
 param(
-    [string] $Version = "22.14.0"
+    [string] $Version = "20.18.3"
 )
 
 $ErrorActionPreference = "Stop"

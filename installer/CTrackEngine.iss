@@ -58,11 +58,11 @@ Source: "..\release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs cr
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut for CTrack Publish Engine"; GroupDescription: "Additional shortcuts:"; Flags: unchecked
-Name: "firewall"; Description: "Add a Windows Firewall rule for the engine API on localhost port 7777"; GroupDescription: "Network:"; Flags: unchecked
+Name: "firewall"; Description: "Re-apply Windows Firewall loopback rule for port 7777 (usually added automatically)"; GroupDescription: "Network:"; Flags: unchecked
 Name: "fullmedia"; Description: "Include FFmpeg, OpenImageIO, and OCIO in this install (offline / air-gapped sites)"; GroupDescription: "Media runtime:"; Flags: unchecked
 
 [Run]
-Filename: "{cmd}"; Parameters: "/C netsh advfirewall firewall add rule name=""CTrack Engine API (loopback 7777)"" dir=in action=allow protocol=TCP localip=127.0.0.1 localport=7777 profile=private,domain"; Flags: runhidden; Tasks: firewall
+Filename: "{cmd}"; Parameters: "/C netsh advfirewall firewall add rule name=""CTrack Engine API (loopback 7777)"" dir=in action=allow protocol=TCP localip=127.0.0.1 localport=7777 profile=private,domain"; Flags: runhidden
 Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\scripts\download-media-pack.ps1"" -TargetRoot ""{app}\engine"""; Flags: runhidden; Tasks: fullmedia
 Filename: "{app}\{#MyAppExeName}"; Description: "Start CTrack Engine in the system tray"; Flags: postinstall nowait skipifsilent
 

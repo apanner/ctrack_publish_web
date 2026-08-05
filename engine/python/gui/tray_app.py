@@ -214,6 +214,8 @@ class TrayHost:
     def _is_paired(self) -> bool:
         if is_locally_paired():
             return True
+        if not health_ok():
+            return False
         try:
             return bool(get_auth_status().get("paired"))
         except EngineApiError:
@@ -286,6 +288,10 @@ class TrayHost:
         return self._get_pending_update() is not None
 
     def _check_for_updates(self, manual: bool = False) -> None:
+        if not health_ok():
+            if manual:
+                self._notify("CTrack Engine", "Engine is offline — start the engine first.")
+            return
         try:
             result = check_for_update()
         except EngineApiError as exc:
@@ -333,7 +339,13 @@ class TrayHost:
         threading.Thread(target=self._download_and_apply_update, daemon=True).start()
 
     def _poll_updates(self) -> None:
-        # Check once at startup, then every 24 hours.
+        # Wait until the engine is healthy before the first update check.
+        for _ in range(30):
+            if self._stop.is_set():
+                return
+            if health_ok():
+                break
+            time.sleep(0.5)
         update_poll_seconds = 24 * 60 * 60
         self._check_for_updates(manual=False)
         while not self._stop.wait(update_poll_seconds):

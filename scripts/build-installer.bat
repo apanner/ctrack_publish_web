@@ -14,6 +14,10 @@ echo [ctrack] Embedding portable Node.js...
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0embed-node.ps1"
 if errorlevel 1 exit /b 1
 
+echo [ctrack] Rebuilding native modules for embedded Node...
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0rebuild-release-native.ps1"
+if errorlevel 1 exit /b 1
+
 if exist "%ProgramFiles%\Go\bin\go.exe" (
   echo [ctrack] Building Go tray binary ^(ctrack-engine.exe^)...
   call "%~dp0build-go-engine.bat"
