@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react"
 import { CheckCircle2, Circle, Download, Loader2, LogIn, PlugZap, ShieldAlert, User } from "lucide-react"
-import { ENGINE_BASE } from "@/lib/engine-ipc-shim"
+import { ENGINE_BASE } from "@/lib/engine-base"
 import { useAuth } from "@/hooks/use-auth"
 import {
   buildEngineOfflineMessage,
@@ -182,7 +182,7 @@ export function EngineConnectionGate({ onConnected }: EngineConnectionGateProps)
               )
             }
             label={engineLabel}
-            detail={ENGINE_BASE}
+            detail={ENGINE_BASE || "http://127.0.0.1:7777"}
             tone={engineTone}
           />
         </div>

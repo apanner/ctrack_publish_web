@@ -3,9 +3,7 @@
  * Loaded first from `main.tsx` so existing hooks keep working in the web + hybrid setup.
  */
 
-const ENGINE_BASE: string =
-  (typeof import.meta !== "undefined" && import.meta.env?.VITE_ENGINE_URL) ||
-  "http://127.0.0.1:7777"
+import { ENGINE_BASE } from "@/lib/engine-base"
 
 /** Native folder dialog can stay open a long time; use an explicit cap so failures surface instead of hanging forever. */
 const NATIVE_FOLDER_PICKER_FETCH_MS = 25 * 60 * 1000

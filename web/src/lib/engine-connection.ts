@@ -1,4 +1,4 @@
-import { ENGINE_BASE } from "@/lib/engine-ipc-shim"
+import { ENGINE_BASE } from "@/lib/engine-base"
 
 export interface EngineHealthPayload {
   status?: string
@@ -59,16 +59,18 @@ export function buildEngineOfflineMessage(engineBase: string, error: string | nu
 
 export async function probeEngineConnection(timeoutMs = 5000): Promise<EngineProbeResult> {
   const engineBase = ENGINE_BASE.replace(/\/+$/, "")
+  const displayBase = engineBase || "http://127.0.0.1:7777"
+  const healthUrl = `${engineBase}/health`
   const controller = new AbortController()
   const timer = window.setTimeout(() => controller.abort(), timeoutMs)
   try {
-    const healthRes = await fetch(`${engineBase}/health`, {
+    const healthRes = await fetch(healthUrl, {
       cache: "no-store",
       signal: controller.signal,
     })
     if (!healthRes.ok) {
       return {
-        engineBase,
+        engineBase: displayBase,
         online: false,
         health: null,
         runtime: null,
@@ -85,7 +87,7 @@ export async function probeEngineConnection(timeoutMs = 5000): Promise<EnginePro
           ? "Engine process is running but the Python sidecar is not started. Restart CTrack Engine (tray or npm run dev:engine)."
           : "Engine health check did not report ok"
       return {
-        engineBase,
+        engineBase: displayBase,
         online: false,
         health,
         runtime: null,
@@ -97,7 +99,7 @@ export async function probeEngineConnection(timeoutMs = 5000): Promise<EnginePro
     }
     if (!health.pythonReady) {
       return {
-        engineBase,
+        engineBase: displayBase,
         online: false,
         health,
         runtime: null,
@@ -124,7 +126,7 @@ export async function probeEngineConnection(timeoutMs = 5000): Promise<EnginePro
 
     const missing = Array.isArray(runtime?.missing) ? runtime!.missing! : []
     return {
-      engineBase,
+      engineBase: displayBase,
       online: true,
       health,
       runtime,
@@ -136,7 +138,7 @@ export async function probeEngineConnection(timeoutMs = 5000): Promise<EnginePro
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     return {
-      engineBase,
+      engineBase: displayBase,
       online: false,
       health: null,
       runtime: null,

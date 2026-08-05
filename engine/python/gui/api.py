@@ -180,6 +180,17 @@ def engine_supports_auth(base: str = DEFAULT_BASE) -> bool:
     return False
 
 
+def list_publish_jobs(base: str = DEFAULT_BASE, limit: int = 50) -> list[Dict[str, Any]]:
+    data = _request("GET", f"/api/publish/jobs?limit={int(limit)}", base=base, timeout=6.0)
+    jobs = data.get("jobs") if isinstance(data, dict) else None
+    if not isinstance(jobs, list):
+        # Some responses return a bare array
+        if isinstance(data, list):
+            return [item for item in data if isinstance(item, dict)]
+        return []
+    return [item for item in jobs if isinstance(item, dict)]
+
+
 def check_for_update(base: str = DEFAULT_BASE) -> Dict[str, Any]:
     data = _request("GET", "/api/update/check", base=base, timeout=20.0)
     if not data.get("ok"):

@@ -227,7 +227,61 @@ function parseCorsOrigins(): string[] {
   if (raw) {
     return raw.split(",").map((s) => s.trim()).filter(Boolean)
   }
-  return ["http://localhost:5173", "http://localhost:3001", "http://127.0.0.1:5173", "http://127.0.0.1:3001", "https://ctrackpublishweb.vercel.app"]
+  return [
+    "http://localhost:5173",
+    "http://localhost:3001",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:3001",
+    `http://127.0.0.1:${PORT}`,
+    `http://localhost:${PORT}`,
+    "https://ctrackpublishweb.vercel.app",
+  ]
+}
+
+function resolveWebDistDir(): string | null {
+  const candidates = [
+    path.join(getInstallRoot(), "web", "dist"),
+    path.join(getEngineRoot(), "..", "web", "dist"),
+    path.join(getEngineRoot(), "web", "dist"),
+  ]
+  for (const dir of candidates) {
+    if (fs.existsSync(path.join(dir, "index.html"))) return path.resolve(dir)
+  }
+  return null
+}
+
+/** Serve packaged React UI from the engine (same-origin → no Chrome PNA). */
+function mountLocalWebUi(): void {
+  const webDist = resolveWebDistDir()
+  if (!webDist) {
+    console.warn("[ctrack-engine] Local web UI not found (web/dist). Tray will fall back to hosted URL.")
+    return
+  }
+  console.log(`[ctrack-engine] Serving local UI from ${webDist}`)
+  app.use(express.static(webDist, { index: "index.html", fallthrough: true }))
+  app.get("*", (req, res, next) => {
+    if (req.method !== "GET" && req.method !== "HEAD") {
+      next()
+      return
+    }
+    const p = req.path || ""
+    if (
+      p.startsWith("/api") ||
+      p.startsWith("/auth") ||
+      p === "/health" ||
+      p.startsWith("/health?")
+    ) {
+      next()
+      return
+    }
+    if (path.extname(p)) {
+      next()
+      return
+    }
+    res.sendFile(path.join(webDist, "index.html"), (err) => {
+      if (err) next(err)
+    })
+  })
 }
 
 const app = express()
@@ -1393,6 +1447,7 @@ function isRunAsNodeMainScript(): boolean {
 export function startEngine(): Promise<http.Server> {
   pythonManager.start()
   seedDefaultReviewTemplateIfEmpty()
+  mountLocalWebUi()
   void migratePlainCredentialsToDpapi(getCredentialsPath()).catch((e) => {
     console.warn("[ctrack-engine] credentials DPAPI migration skipped:", e)
   })
@@ -1400,6 +1455,7 @@ export function startEngine(): Promise<http.Server> {
     try {
       httpServer = app.listen(PORT, HOST, () => {
         console.log(`[ctrack-engine] http://${HOST}:${PORT}`)
+        console.log(`[ctrack-engine] Local UI: http://${HOST}:${PORT}/`)
         console.log(`[ctrack-engine] CORS origins:`, parseCorsOrigins().join(", "))
         void (async () => {
           await new Promise((r) => setTimeout(r, 2500))

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { supabase } from "@/lib/supabase"
-import { ENGINE_BASE } from "@/lib/engine-ipc-shim"
+import { ENGINE_BASE } from "@/lib/engine-base"
 
 export interface EnginePairInitResponse {
   pairToken: string

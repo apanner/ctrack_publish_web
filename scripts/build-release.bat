@@ -39,13 +39,9 @@ echo [ctrack] Provisioning app icons...
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0provision-app-icons.ps1"
 if errorlevel 1 exit /b 1
 
-echo [ctrack] Building web...
-if /i not "%INSTALLER_BUILD%"=="1" (
-  call npm run build -w web
-  if errorlevel 1 exit /b 1
-) else (
-  echo [ctrack] Skipping web build for installer package ^(hosted Vercel UI^).
-)
+echo [ctrack] Building web (served locally by engine at :7777)...
+call npm run build -w web
+if errorlevel 1 exit /b 1
 
 set "OUT=%~dp0..\release"
 if not exist "%OUT%" mkdir "%OUT%"
@@ -54,11 +50,13 @@ echo [ctrack] Staging release\ ...
 if exist "%OUT%\engine" rmdir /S /Q "%OUT%\engine"
 if exist "%OUT%\web" rmdir /S /Q "%OUT%\web"
 mkdir "%OUT%\engine" 2>nul
-if /i not "%INSTALLER_BUILD%"=="1" mkdir "%OUT%\web" 2>nul
+mkdir "%OUT%\web" 2>nul
 xcopy /E /I /Y "engine\dist" "%OUT%\engine\dist\" >nul
 xcopy /E /I /Y "engine\python" "%OUT%\engine\python\" >nul
-if /i not "%INSTALLER_BUILD%"=="1" (
-  if exist "web\dist" xcopy /E /I /Y "web\dist" "%OUT%\web\dist\" >nul
+if exist "web\dist" xcopy /E /I /Y "web\dist" "%OUT%\web\dist\" >nul
+if not exist "%OUT%\web\dist\index.html" (
+  echo [ctrack] ERROR: web\dist\index.html missing after build. Local UI will not work.
+  exit /b 1
 )
 copy /Y "engine\.env.example" "%OUT%\engine\.env.example" >nul 2>nul
 copy /Y "web\.env.example" "%OUT%\web\.env.example" >nul 2>nul

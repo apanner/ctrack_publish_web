@@ -10,7 +10,8 @@ import (
 	"github.com/getlantern/systray"
 )
 
-const defaultWebURL = "https://ctrackpublishweb.vercel.app"
+const defaultLocalUI = "http://127.0.0.1:7777"
+const defaultHostedWeb = "https://ctrackpublishweb.vercel.app"
 
 // Options configures the native Windows systray host.
 type Options struct {
@@ -20,27 +21,28 @@ type Options struct {
 
 // Run blocks until the user quits from the tray menu.
 func Run(opts Options) {
-	webURL := strings.TrimRight(opts.WebURL, "/")
-	if webURL == "" {
-		webURL = defaultWebURL
+	localUI := defaultLocalUI
+	hosted := strings.TrimRight(opts.WebURL, "/")
+	if hosted == "" {
+		hosted = defaultHostedWeb
 	}
-	linkURL := webURL + "/link-engine"
+	linkURL := hosted + "/link-engine"
 
 	systray.Run(func() {
 		systray.SetTitle("CTrack Engine")
 		systray.SetTooltip("CTrack Publish Engine")
+		mOpen := systray.AddMenuItem("Open CTrack", "Open local publish UI")
 		mSignIn := systray.AddMenuItem("Sign in to CTrack...", "Open browser pairing")
-		mWeb := systray.AddMenuItem("Open web UI", "Open hosted app")
 		systray.AddSeparator()
 		mQuit := systray.AddMenuItem("Quit", "Stop engine and exit")
 
 		go func() {
 			for {
 				select {
+				case <-mOpen.ClickedCh:
+					openBrowser(localUI + "/")
 				case <-mSignIn.ClickedCh:
 					openBrowser(linkURL)
-				case <-mWeb.ClickedCh:
-					openBrowser(webURL + "/")
 				case <-mQuit.ClickedCh:
 					systray.Quit()
 					return

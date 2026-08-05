@@ -1,8 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-
-const ENGINE_BASE =
-  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_ENGINE_URL) ||
-  'http://127.0.0.1:7777'
+import { ENGINE_BASE } from '@/lib/engine-base'
 
 const authOptions = {
   persistSession: true,

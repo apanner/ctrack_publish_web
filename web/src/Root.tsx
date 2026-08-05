@@ -3,14 +3,17 @@ import App from "./App"
 import { FirstRunSetup } from "@/components/setup/FirstRunSetup"
 import { EngineConnectionGate } from "@/components/engine/EngineConnectionGate"
 import { LinkEnginePage } from "@/pages/LinkEnginePage"
-import { hasLocalNetworkAccessFlag, probeEngineConnection } from "@/lib/engine-connection"
+import { ENGINE_BASE, isLocalEngineOrigin } from "@/lib/engine-base"
+import { hasLocalNetworkAccessFlag, markLocalNetworkAccessGranted, probeEngineConnection } from "@/lib/engine-connection"
 import { initializeSupabase, supabase } from "@/lib/supabase"
 
-const ENGINE_BASE =
-  (typeof import.meta !== "undefined" && import.meta.env?.VITE_ENGINE_URL) ||
-  "http://127.0.0.1:7777"
 const START_ENGINE_HELP =
   "Run scripts\\start-engine-tray.vbs (or the Start CTrack Engine Tray shortcut), then retry."
+
+function engineUrl(path: string): string {
+  const base = ENGINE_BASE.replace(/\/+$/, "")
+  return `${base}${path.startsWith("/") ? path : `/${path}`}`
+}
 
 export function Root() {
   if (typeof window !== "undefined" && window.location.pathname.replace(/\/+$/, "") === "/link-engine") {
@@ -22,7 +25,6 @@ export function Root() {
 function RootApp() {
   const [phase, setPhase] = useState<"loading" | "setup" | "app" | "error">("loading")
   const [err, setErr] = useState<string | null>(null)
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isEngineReachable, setIsEngineReachable] = useState<boolean | null>(null)
 
   useEffect(() => {
@@ -30,13 +32,16 @@ function RootApp() {
     let unsubscribeAuth: (() => void) | null = null
 
     async function refreshAuthState(): Promise<void> {
-      const { data } = await supabase.auth.getSession()
-      if (!cancelled) {
-        setIsAuthenticated(Boolean(data.session?.user))
-      }
+      await supabase.auth.getSession()
     }
 
     async function probeEngineReachability(): Promise<boolean> {
+      // Same-origin local UI (served by engine) — no Chrome PNA gate.
+      if (isLocalEngineOrigin()) {
+        markLocalNetworkAccessGranted()
+        const probe = await probeEngineConnection()
+        return probe.online
+      }
       if (!hasLocalNetworkAccessFlag()) return false
       const probe = await probeEngineConnection()
       return probe.online
@@ -54,8 +59,8 @@ function RootApp() {
           await refreshAuthState()
           const {
             data: { subscription },
-          } = supabase.auth.onAuthStateChange((_event, session) => {
-            if (!cancelled) setIsAuthenticated(Boolean(session?.user))
+          } = supabase.auth.onAuthStateChange(() => {
+            /* session tracked in useAuth */
           })
           unsubscribeAuth = () => subscription.unsubscribe()
           const online = await probeEngineReachability()
@@ -65,12 +70,12 @@ function RootApp() {
           }
           return
         }
-        const stRes = await fetch(`${ENGINE_BASE}/api/setup/status`, {
+        const stRes = await fetch(engineUrl("/api/setup/status"), {
           signal: AbortSignal.timeout(15_000),
         })
         if (!stRes.ok) {
           throw new Error(
-            `Cannot reach engine at ${ENGINE_BASE} (${stRes.status}). ${START_ENGINE_HELP}`
+            `Cannot reach engine at ${ENGINE_BASE || "http://127.0.0.1:7777"} (${stRes.status}). ${START_ENGINE_HELP}`
           )
         }
         const st = (await stRes.json()) as { complete: boolean }
@@ -88,8 +93,8 @@ function RootApp() {
         await refreshAuthState()
         const {
           data: { subscription },
-        } = supabase.auth.onAuthStateChange((_event, session) => {
-          if (!cancelled) setIsAuthenticated(Boolean(session?.user))
+        } = supabase.auth.onAuthStateChange(() => {
+          /* session tracked in useAuth */
         })
         unsubscribeAuth = () => subscription.unsubscribe()
         const online = await probeEngineReachability()
@@ -100,7 +105,7 @@ function RootApp() {
       } catch (e) {
         const msg =
           e instanceof Error && e.name === "TimeoutError"
-            ? `Engine did not respond within 15s at ${ENGINE_BASE}. ${START_ENGINE_HELP}`
+            ? `Engine did not respond within 15s at ${ENGINE_BASE || "http://127.0.0.1:7777"}. ${START_ENGINE_HELP}`
             : e instanceof Error
               ? e.message
               : String(e)
@@ -142,12 +147,11 @@ function RootApp() {
   if (phase === "setup") {
     return (
       <FirstRunSetup
-        engineBase={ENGINE_BASE}
+        engineBase={ENGINE_BASE || "http://127.0.0.1:7777"}
         onFinished={() => {
           void initializeSupabase().then((ok) => {
             if (ok) {
-              void supabase.auth.getSession().then(({ data }) => setIsAuthenticated(Boolean(data.session?.user)))
-              void fetch(`${ENGINE_BASE}/health`, {
+              void fetch(engineUrl("/health"), {
                 signal: AbortSignal.timeout(5_000),
                 cache: "no-store",
               })
@@ -165,7 +169,9 @@ function RootApp() {
     )
   }
 
-  if (phase === "app" && isEngineReachable === false) {
+  // Hosted Vercel (or other remote origin) must pass Chrome PNA via the gate.
+  // Local engine UI is same-origin — never show the gate.
+  if (phase === "app" && isEngineReachable === false && !isLocalEngineOrigin()) {
     return (
       <EngineConnectionGate
         onConnected={() => {

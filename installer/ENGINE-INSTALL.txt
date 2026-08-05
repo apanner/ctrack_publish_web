@@ -11,8 +11,18 @@ The installer includes the engine runtime:
   - FFmpeg under engine\runtime\ffmpeg
   - OpenImageIO (oiiotool) under engine\runtime\oiio
   - OCIO configs under engine\runtime\ocio
+  - Local web UI under web\dist (served at http://127.0.0.1:7777/)
 
 Users should not install Python, pip, FFmpeg, OpenImageIO, OCIO, or Python modules manually.
+
+Daily use
+---------
+1. Tray starts at Windows login (and after install).
+2. Open CTrack from the tray or Start Menu → http://127.0.0.1:7777/ (same origin, no Chrome Allow prompt).
+3. Sign in once to pair the workstation.
+4. Updates download and install silently when the engine is idle and paired.
+
+The hosted Vercel site is optional. If you use it, Chrome may ask for local network access once.
 
 Configuration
 -------------

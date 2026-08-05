@@ -36,7 +36,9 @@ class TrayHost:
         self.engine_dir = get_engine_dir(install_root)
         self.tray_bat = get_tray_bat(install_root)
         self.engine_process: Optional[subprocess.Popen] = None
-        self.web_url = os.environ.get("CTRACK_WEB_URL", "https://ctrackpublishweb.vercel.app/")
+        # Primary UI is served by the local engine (same-origin, no Chrome PNA).
+        self.local_ui_url = "http://127.0.0.1:7777/"
+        self.web_url = os.environ.get("CTRACK_WEB_URL", self.local_ui_url)
         self._icon: Optional[pystray.Icon] = None
         self._stop = threading.Event()
         self._tray_lock = tray_lock
@@ -161,7 +163,14 @@ class TrayHost:
             self._notify("CTrack Engine", f"Open this URL to sign in:\n{url}")
 
     def _open_web(self) -> None:
-        webbrowser.open(self.web_url)
+        """Open local engine UI (preferred) — avoids Chrome PNA on Vercel."""
+        webbrowser.open(self.local_ui_url)
+
+    def _ensure_autostart_default(self) -> None:
+        """Enable Start at Windows login once so users do not hunt for the tray."""
+        if is_launch_at_login(self.tray_bat):
+            return
+        set_launch_at_login(True, self.tray_bat)
 
     def _restart(self) -> None:
         self._stop_engine()
@@ -244,17 +253,18 @@ class TrayHost:
             items.append(pystray.MenuItem(self._account_display_name(), None, enabled=False))
             items.append(pystray.MenuItem("Account settings...", lambda _i, _m: self._open_login()))
             items.append(pystray.Menu.SEPARATOR)
+        open_default = self._is_paired()
         items.extend(
             [
-                pystray.MenuItem("Open Engine", lambda _i, _m: self._open_engine()),
+                pystray.MenuItem("Open CTrack", lambda _i, _m: self._open_web(), default=open_default),
+                pystray.MenuItem("Open Engine console", lambda _i, _m: self._open_engine()),
                 pystray.MenuItem("Settings...", lambda _i, _m: self._open_settings()),
-                pystray.MenuItem("Open web UI", lambda _i, _m: self._open_web()),
                 pystray.Menu.SEPARATOR,
                 pystray.MenuItem("Start at Windows login", self._toggle_startup_login, checked=self._startup_login_checked),
                 pystray.MenuItem("Restart engine", lambda _i, _m: self._restart()),
                 pystray.MenuItem("Check for updates", lambda _i, _m: self._start_check_updates()),
                 pystray.MenuItem(
-                    "Install update",
+                    "Install update now",
                     lambda _i, _m: self._start_install_update(),
                     enabled=self._is_install_enabled,
                 ),
@@ -287,6 +297,20 @@ class TrayHost:
             return False
         return self._get_pending_update() is not None
 
+    def _engine_is_idle(self) -> bool:
+        """Skip silent updates while publish jobs are actively processing."""
+        try:
+            from gui.api import list_publish_jobs
+
+            jobs = list_publish_jobs()
+            busy = {"transcoding", "uploading", "submitting", "processing"}
+            for job in jobs:
+                if str(job.get("status") or "").lower() in busy:
+                    return False
+            return True
+        except Exception:
+            return True
+
     def _check_for_updates(self, manual: bool = False) -> None:
         if not health_ok():
             if manual:
@@ -303,7 +327,16 @@ class TrayHost:
             if isinstance(pending, dict):
                 self._set_pending_update(pending)
             version = str(result.get("remoteVersion") or "new")
-            self._notify("CTrack update available", f"Version {version} is ready.")
+            if manual:
+                self._notify("CTrack update available", f"Version {version} — installing…")
+                self._download_and_apply_update()
+                return
+            # Silent auto-update when paired and idle (no active publish jobs).
+            if self._is_paired() and self._engine_is_idle():
+                self._notify("CTrack update", f"Installing v{version} in the background…")
+                self._download_and_apply_update()
+            else:
+                self._notify("CTrack update available", f"Version {version} is ready (Install update now).")
             return
         self._set_pending_update(None)
         if manual:
@@ -380,6 +413,7 @@ class TrayHost:
             time.sleep(3)
 
     def run(self) -> None:
+        self._ensure_autostart_default()
         self._ensure_fresh_engine()
         for _ in range(15):
             if health_ok():
