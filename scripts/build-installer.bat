@@ -38,6 +38,10 @@ if errorlevel 1 exit /b 1
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0..\installer\branding\normalize-wizard-images.ps1"
 if errorlevel 1 exit /b 1
 
+echo [ctrack] Stripping Python bytecode caches from release payload...
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0strip-release-python-cache.ps1"
+if errorlevel 1 exit /b 1
+
 echo [ctrack] Compiling installer...
 set "ENGINE_VER="
 for /f "usebackq delims=" %%V in (`powershell -NoProfile -Command "(Get-Content '%~dp0..\version.json' -Raw | ConvertFrom-Json).engine"`) do set "ENGINE_VER=%%V"

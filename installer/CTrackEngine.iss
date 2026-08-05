@@ -4,7 +4,9 @@
 ; If setup shows "bitmap is not valid", run branding\normalize-wizard-images.ps1 (outputs 24-bit BMP; PNG sources alone often fail at runtime).
 
 #define MyAppName "CTrack Publish Engine"
+#ifndef MyAppVersion
 #define MyAppVersion "0.1.0"
+#endif
 #define MyAppPublisher "CTrack"
 #define MyAppExeName "start-engine-tray.vbs"
 
