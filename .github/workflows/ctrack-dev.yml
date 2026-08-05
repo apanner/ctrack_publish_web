@@ -34,6 +34,8 @@ jobs:
           cache-dependency-path: package-lock.json
 
       - name: Install dependencies
+        env:
+          CTRACK_SKIP_POSTINSTALL_RUNTIME: "1"
         run: npm ci
 
       - name: Build engine + web

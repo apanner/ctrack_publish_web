@@ -16,6 +16,12 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+
+if ($env:CTRACK_SKIP_POSTINSTALL_RUNTIME -eq '1') {
+  Write-Host '[gui] Skipping Python provisioning (CTRACK_SKIP_POSTINSTALL_RUNTIME=1).'
+  exit 0
+}
+
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 if ($TargetRoot) {
   $engineRoot = Resolve-Path $TargetRoot
@@ -32,10 +38,23 @@ $getPip = Join-Path $cacheDir "get-pip.py"
 
 New-Item -ItemType Directory -Force -Path $cacheDir, $runtimeRoot | Out-Null
 
-function Download-File($Url, $Destination) {
+function Download-File($Urls, $Destination) {
   if ((Test-Path $Destination) -and !$Force) { return }
-  Write-Host "[gui] Downloading $Url"
-  Invoke-WebRequest -Uri $Url -OutFile $Destination
+  $lastError = $null
+  foreach ($url in $Urls) {
+    for ($attempt = 1; $attempt -le 3; $attempt++) {
+      try {
+        Write-Host "[gui] Downloading $url (attempt $attempt/3)"
+        Invoke-WebRequest -Uri $url -OutFile $Destination -UseBasicParsing
+        return
+      } catch {
+        $lastError = $_
+        Write-Warning "[gui] Download failed: $($_.Exception.Message)"
+        if ($attempt -lt 3) { Start-Sleep -Seconds (5 * $attempt) }
+      }
+    }
+  }
+  throw "Failed to download after retries: $($Urls -join ', '). Last error: $lastError"
 }
 
 function Install-StandalonePython {
@@ -48,7 +67,7 @@ function Install-StandalonePython {
   }
 
   $url = "https://github.com/astral-sh/python-build-standalone/releases/download/$StandaloneTag/$archiveName"
-  Download-File $url $standaloneTar
+  Download-File @($url) $standaloneTar
 
   $extractRoot = Join-Path $cacheDir "standalone-$PythonVersion-$StandaloneTag"
   if (Test-Path $extractRoot) { Remove-Item -Recurse -Force $extractRoot }
@@ -69,7 +88,7 @@ function Install-StandalonePython {
 Install-StandalonePython
 
 if (!(Test-Path $getPip)) {
-  Download-File "https://bootstrap.pypa.io/get-pip.py" $getPip
+  Download-File @('https://bootstrap.pypa.io/get-pip.py') $getPip
 }
 
 $pythonExe = Join-Path $pythonDir "python.exe"

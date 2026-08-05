@@ -9,6 +9,11 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+if ($env:CTRACK_SKIP_POSTINSTALL_RUNTIME -eq '1') {
+  Write-Host '[ctrack] Skipping media runtime download (CTRACK_SKIP_POSTINSTALL_RUNTIME=1).'
+  exit 0
+}
+
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 if ($TargetRoot) {
   $engineRoot = Resolve-Path $TargetRoot
@@ -26,16 +31,29 @@ New-Item -ItemType Directory -Force -Path $cacheDir, $runtimeRoot, $ocioDir | Ou
 
 function Download-File {
   param(
-    [Parameter(Mandatory = $true)][string]$Url,
+    [Parameter(Mandatory = $true)][string[]]$Urls,
     [Parameter(Mandatory = $true)][string]$Destination
   )
   if ((Test-Path $Destination) -and !$Force) {
     Write-Host "[ctrack] Using cached $(Split-Path $Destination -Leaf)"
     return
   }
-  Write-Host "[ctrack] Downloading $Url"
   [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-  Invoke-WebRequest -Uri $Url -OutFile $Destination -UseBasicParsing
+  $lastError = $null
+  foreach ($url in $Urls) {
+  for ($attempt = 1; $attempt -le 3; $attempt++) {
+    try {
+      Write-Host "[ctrack] Downloading $url (attempt $attempt/3)"
+      Invoke-WebRequest -Uri $url -OutFile $Destination -UseBasicParsing
+      return
+    } catch {
+      $lastError = $_
+      Write-Warning "[ctrack] Download failed: $($_.Exception.Message)"
+      if ($attempt -lt 3) { Start-Sleep -Seconds (5 * $attempt) }
+    }
+  }
+  }
+  throw "Failed to download after retries: $($Urls -join ', '). Last error: $lastError"
 }
 
 function Ensure-FfmpegRuntime {
@@ -47,7 +65,10 @@ function Ensure-FfmpegRuntime {
   if (Test-Path $ffmpegDir) { Remove-Item -Recurse -Force $ffmpegDir }
   if (Test-Path $ffmpegExtractDir) { Remove-Item -Recurse -Force $ffmpegExtractDir }
   New-Item -ItemType Directory -Force -Path $ffmpegDir, $ffmpegExtractDir | Out-Null
-  Download-File -Url "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip" -Destination $ffmpegZip
+  Download-File -Urls @(
+    'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip',
+    'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip'
+  ) -Destination $ffmpegZip
   Expand-Archive -Path $ffmpegZip -DestinationPath $ffmpegExtractDir -Force
   $ffmpegExe = Get-ChildItem -Path $ffmpegExtractDir -Recurse -Filter "ffmpeg.exe" | Select-Object -First 1
   $ffprobeExe = Get-ChildItem -Path $ffmpegExtractDir -Recurse -Filter "ffprobe.exe" | Select-Object -First 1
@@ -72,7 +93,9 @@ function Ensure-OiioRuntime {
   $oiioZip = Join-Path $cacheDir "OpenImageIO.zip"
   $extractTo = Join-Path $cacheDir "oiio-extract"
   if (Test-Path $extractTo) { Remove-Item -Recurse -Force $extractTo }
-  Download-File -Url "https://github.com/pitvfx/OpenImageIO/releases/download/v1.0.0/OpenImageIO.zip" -Destination $oiioZip
+  Download-File -Urls @(
+    'https://github.com/pitvfx/OpenImageIO/releases/download/v1.0.0/OpenImageIO.zip'
+  ) -Destination $oiioZip
   Expand-Archive -Path $oiioZip -DestinationPath $extractTo -Force
 
   $found = Get-ChildItem -Path $extractTo -Recurse -Filter "oiiotool.exe" | Select-Object -First 1
@@ -120,9 +143,9 @@ function Ensure-OcioRuntime {
   }
 
   if (!(Test-Path $bundledCg) -or $Force) {
-    Download-File `
-      -Url "https://github.com/AcademySoftwareFoundation/OpenColorIO-Config-ACES/releases/download/v2.1.0-v2.2.0/cg-config-v2.1.0_aces-v1.3_ocio-v2.2.ocio" `
-      -Destination $bundledCg
+    Download-File -Urls @(
+      'https://github.com/AcademySoftwareFoundation/OpenColorIO-Config-ACES/releases/download/v2.1.0-v2.2.0/cg-config-v2.1.0_aces-v1.3_ocio-v2.2.ocio'
+    ) -Destination $bundledCg
   }
   Write-Host "[ctrack] OCIO fallback (cg-config): $bundledCg"
   Write-Host "[ctrack] Tip: install Nuke once and re-run pack to embed full aces_1.2 for exact sample.nk parity."
