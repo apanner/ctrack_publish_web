@@ -8,7 +8,7 @@
 #define MyAppVersion "0.1.0"
 #endif
 #define MyAppPublisher "CTrack"
-#define MyAppExeName "start-engine-tray.vbs"
+#define MyTrayVbs "start-engine-tray.vbs"
 
 [Setup]
 AppId={{A8E9F4C3-6B2D-4E1F-9C0D-AABBCCDDEEFF}
@@ -66,13 +66,13 @@ Name: "fullmedia"; Description: "Include FFmpeg, OpenImageIO, and OCIO in this i
 [Run]
 Filename: "{cmd}"; Parameters: "/C netsh advfirewall firewall add rule name=""CTrack Engine API (loopback 7777)"" dir=in action=allow protocol=TCP localip=127.0.0.1 localport=7777 profile=private,domain"; Flags: runhidden
 Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\scripts\download-media-pack.ps1"" -TargetRoot ""{app}\engine"""; Flags: runhidden; Tasks: fullmedia
-Filename: "{app}\{#MyAppExeName}"; Description: "Start CTrack Engine in the system tray"; Flags: postinstall nowait skipifsilent
+Filename: "{sys}\wscript.exe"; Parameters: "//nologo ""{app}\{#MyTrayVbs}"""; Description: "Start CTrack Engine in the system tray"; Flags: postinstall nowait skipifsilent
 
 [Icons]
-Name: "{group}\Start CTrack Engine"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; IconFilename: "{app}\engine\assets\ctrack-tray.ico"
+Name: "{group}\Start CTrack Engine"; Filename: "{sys}\wscript.exe"; Parameters: "//nologo ""{app}\{#MyTrayVbs}"""; WorkingDir: "{app}"; IconFilename: "{app}\engine\assets\ctrack-tray.ico"
 Name: "{group}\Start CTrack Engine (native)"; Filename: "{app}\ctrack-engine.exe"; WorkingDir: "{app}"; IconFilename: "{app}\engine\assets\ctrack-tray.ico"; Check: FileExists(ExpandConstant('{app}\ctrack-engine.exe'))
 Name: "{group}\Start Engine (console)"; Filename: "{app}\start-engine.bat"; WorkingDir: "{app}"; IconFilename: "{app}\engine\assets\ctrack-tray.ico"
-Name: "{group}\Engine Settings"; Filename: "{app}\open-tray-settings.vbs"; WorkingDir: "{app}"; IconFilename: "{app}\engine\assets\ctrack-tray.ico"
+Name: "{group}\Engine Settings"; Filename: "{sys}\wscript.exe"; Parameters: "//nologo ""{app}\open-tray-settings.vbs"""; WorkingDir: "{app}"; IconFilename: "{app}\engine\assets\ctrack-tray.ico"
 Name: "{group}\Open Hosted Web UI"; Filename: "https://ctrackpublishweb.vercel.app/"; IconFilename: "{app}\engine\assets\ctrack-tray.ico"
 Name: "{group}\Open engine folder"; Filename: "{win}\explorer.exe"; Parameters: """{app}\engine"""; IconFilename: "{app}\engine\assets\ctrack-tray.ico"
-Name: "{autodesktop}\CTrack Publish Engine"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; IconFilename: "{app}\engine\assets\ctrack-tray.ico"; Tasks: desktopicon
+Name: "{autodesktop}\CTrack Publish Engine"; Filename: "{sys}\wscript.exe"; Parameters: "//nologo ""{app}\{#MyTrayVbs}"""; WorkingDir: "{app}"; IconFilename: "{app}\engine\assets\ctrack-tray.ico"; Tasks: desktopicon
