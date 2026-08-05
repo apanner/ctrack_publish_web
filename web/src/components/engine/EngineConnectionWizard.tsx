@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { AlertTriangle, CheckCircle2, Download, ExternalLink, Link2, Loader2, RefreshCw, Wrench } from "lucide-react"
 import { ENGINE_BASE } from "@/lib/engine-ipc-shim"
 import {
@@ -8,6 +8,7 @@ import {
   requestEngineInstallerDownloadUrl,
   type InstallerDownloadSource,
 } from "@/lib/engine-installer"
+import { probeEngineConnection } from "@/lib/engine-connection"
 import { useEnginePairing } from "@/hooks/use-engine-pairing"
 import { useEngineRelease } from "@/hooks/use-engine-release"
 import { EngineDiagnostics } from "@/components/engine/EngineDiagnostics"
@@ -52,19 +53,8 @@ const WIZARD_STEPS: WizardStep[] = [
   },
 ]
 
-async function verifyEngineHealth(): Promise<{ version?: string; activeExrBackend?: string }> {
-  const response = await fetch(`${ENGINE_BASE}/health`, {
-    signal: AbortSignal.timeout(5_000),
-    cache: "no-store",
-  })
-  if (!response.ok) {
-    throw new Error(`Health check failed (${response.status})`)
-  }
-  return (await response.json()) as { version?: string; activeExrBackend?: string }
-}
-
 export function EngineConnectionWizard({ onConnected }: EngineConnectionWizardProps) {
-  const [activeStepIndex, setActiveStepIndex] = useState(1)
+  const [activeStepIndex, setActiveStepIndex] = useState(0)
   const [pairToken, setPairToken] = useState<string | null>(null)
   const [pairingCode, setPairingCode] = useState<string | null>(null)
   const [downloadError, setDownloadError] = useState<string | null>(null)
@@ -74,9 +64,13 @@ export function EngineConnectionWizard({ onConnected }: EngineConnectionWizardPr
   const [exrBackend, setExrBackend] = useState<string | null>(null)
   const [isDownloadBusy, setIsDownloadBusy] = useState(false)
   const [isVerifyBusy, setIsVerifyBusy] = useState(false)
+  const [isEngineOnline, setIsEngineOnline] = useState(false)
+  const [probeError, setProbeError] = useState<string | null>(null)
   const autoDownloadAttemptedRef = useRef(false)
+  const hasAutoContinuedRef = useRef(false)
   const { pairStatusQuery, initializePairingMutation, completePairingMutation } = useEnginePairing({
     enabled: true,
+    refetchIntervalMs: 3000,
   })
   const latestReleaseQuery = useEngineRelease({ enabled: true })
   const latestVersion = latestReleaseQuery.data?.version?.trim() ?? ""
@@ -92,6 +86,57 @@ export function EngineConnectionWizard({ onConnected }: EngineConnectionWizardPr
 
   const activeStep = WIZARD_STEPS[activeStepIndex]
   const isPaired = pairStatusQuery.data?.paired ?? false
+
+  const continueToApp = useCallback(() => {
+    if (hasAutoContinuedRef.current) return
+    hasAutoContinuedRef.current = true
+    onConnected?.()
+  }, [onConnected])
+
+  const refreshEngineProbe = useCallback(async (): Promise<boolean> => {
+    const probe = await probeEngineConnection()
+    setIsEngineOnline(probe.online)
+    setProbeError(probe.online ? null : probe.error)
+    if (probe.online) {
+      setEngineVersion(probe.health?.version ?? null)
+      setExrBackend(probe.activeExrBackend)
+      setActiveStepIndex((current) => Math.max(current, WIZARD_STEPS.length - 1))
+      continueToApp()
+      return true
+    }
+    return false
+  }, [continueToApp])
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function pollEngine(): Promise<void> {
+      const probe = await probeEngineConnection()
+      if (cancelled) return
+      setIsEngineOnline(probe.online)
+      setProbeError(probe.online ? null : probe.error)
+      if (!probe.online) return
+      setEngineVersion(probe.health?.version ?? null)
+      setExrBackend(probe.activeExrBackend)
+      setActiveStepIndex((current) => Math.max(current, WIZARD_STEPS.length - 1))
+      continueToApp()
+    }
+
+    void pollEngine()
+    const intervalId = window.setInterval(() => {
+      void pollEngine()
+    }, 3000)
+    return () => {
+      cancelled = true
+      window.clearInterval(intervalId)
+    }
+  }, [continueToApp])
+
+  useEffect(() => {
+    if (isPaired && isEngineOnline) {
+      continueToApp()
+    }
+  }, [isPaired, isEngineOnline, continueToApp])
 
   async function handleDownloadInstaller(options?: { auto?: boolean }): Promise<void> {
     try {
@@ -123,8 +168,13 @@ export function EngineConnectionWizard({ onConnected }: EngineConnectionWizardPr
     if (autoDownloadAttemptedRef.current) return
     if (activeStep.id !== "download") return
     autoDownloadAttemptedRef.current = true
-    void handleDownloadInstaller({ auto: true })
-  }, [activeStep.id, latestVersion])
+    void (async () => {
+      const online = await refreshEngineProbe()
+      if (!online) {
+        await handleDownloadInstaller({ auto: true })
+      }
+    })()
+  }, [activeStep.id, latestVersion, refreshEngineProbe])
 
   async function handleInitPairing(): Promise<void> {
     const result = await initializePairingMutation.mutateAsync()
@@ -146,10 +196,10 @@ export function EngineConnectionWizard({ onConnected }: EngineConnectionWizardPr
     try {
       setVerifyError(null)
       setIsVerifyBusy(true)
-      const health = await verifyEngineHealth()
-      setEngineVersion(health.version ?? null)
-      setExrBackend(health.activeExrBackend ?? null)
-      onConnected?.()
+      const online = await refreshEngineProbe()
+      if (!online) {
+        throw new Error(probeError ?? "Engine is still offline.")
+      }
     } catch (error) {
       setVerifyError(error instanceof Error ? error.message : String(error))
     } finally {
@@ -161,10 +211,11 @@ export function EngineConnectionWizard({ onConnected }: EngineConnectionWizardPr
   const canMoveNext = activeStepIndex < WIZARD_STEPS.length - 1
 
   const statusTone = useMemo(() => {
+    if (isEngineOnline) return "ok"
     if (activeStep.id === "verify" && !verifyError && engineVersion) return "ok"
     if (activeStep.id === "pair" && isPaired) return "ok"
     return "warn"
-  }, [activeStep.id, engineVersion, isPaired, verifyError])
+  }, [activeStep.id, engineVersion, isEngineOnline, isPaired, verifyError])
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#1A1A1A] p-6 text-gray-100">
@@ -173,8 +224,9 @@ export function EngineConnectionWizard({ onConnected }: EngineConnectionWizardPr
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-white">Connect your local engine</h1>
             <p className="mt-2 text-sm text-gray-400">
-              The browser is signed in, but it cannot reach `{ENGINE_BASE}` yet. Follow the steps below to install and
-              pair this workstation.
+              {isEngineOnline
+                ? "Local engine detected. Opening CTrack Publish…"
+                : `The browser is signed in, but it cannot reach ${ENGINE_BASE} yet. Follow the steps below to install and pair this workstation.`}
             </p>
           </div>
           <div
@@ -212,6 +264,28 @@ export function EngineConnectionWizard({ onConnected }: EngineConnectionWizardPr
         </ol>
 
         <section className="rounded-xl border border-white/10 bg-black/20 p-4">
+          {isEngineOnline && (
+            <div className="mb-4 space-y-2 rounded-lg border border-emerald-400/40 bg-emerald-500/10 p-3 text-sm text-emerald-200">
+              <p className="font-medium">
+                Engine online{engineVersion ? ` (v${engineVersion})` : ""}
+                {isPaired ? " and paired" : ""}.
+              </p>
+              <p className="text-xs text-emerald-100/90">
+                {hasAutoContinuedRef.current
+                  ? "Loading CTrack Publish…"
+                  : "Your browser can reach the local engine. Continuing to the app."}
+              </p>
+              <button
+                type="button"
+                onClick={() => continueToApp()}
+                className="inline-flex items-center gap-2 rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-500"
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                Open CTrack Publish
+              </button>
+            </div>
+          )}
+
           {activeStep.id === "detect" && (
             <div className="space-y-3 text-sm">
               <p className="text-gray-300">
@@ -223,6 +297,14 @@ export function EngineConnectionWizard({ onConnected }: EngineConnectionWizardPr
                   Latest published engine: <span className="font-semibold">v{latestVersion}</span>
                 </p>
               )}
+              <button
+                type="button"
+                onClick={() => void refreshEngineProbe()}
+                className="inline-flex items-center gap-2 rounded-md border border-white/20 bg-white/5 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Check for running engine
+              </button>
               <button
                 type="button"
                 onClick={() => setActiveStepIndex(1)}
@@ -262,12 +344,25 @@ export function EngineConnectionWizard({ onConnected }: EngineConnectionWizardPr
                   Release metadata server is unavailable. Use the direct GitHub download link below.
                 </p>
               )}
+              {probeError && !isEngineOnline && (
+                <p className="rounded border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                  {probeError}
+                </p>
+              )}
               {downloadSource && (
                 <p className="rounded border border-emerald-400/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
                   Download started via {downloadSource === "edge" ? "authenticated edge function" : "GitHub Releases"}.
                 </p>
               )}
               <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void refreshEngineProbe()}
+                  className="inline-flex items-center gap-2 rounded-md border border-emerald-400/40 bg-emerald-500/10 px-4 py-2 text-sm font-medium text-emerald-100 transition hover:bg-emerald-500/20"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Engine is installed — continue
+                </button>
                 <button
                   type="button"
                   onClick={() => void handleDownloadInstaller()}

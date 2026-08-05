@@ -17,6 +17,7 @@ export interface EnginePairStatus {
 
 interface UseEnginePairingOptions {
   enabled?: boolean
+  refetchIntervalMs?: number
 }
 
 function resolveSupabaseUrl(): string {
@@ -118,7 +119,7 @@ export function useEnginePairing(options?: UseEnginePairingOptions) {
     queryKey: ["engine-pair-status"],
     queryFn: fetchPairStatus,
     enabled,
-    refetchInterval: enabled ? 15_000 : false,
+    refetchInterval: enabled ? (options?.refetchIntervalMs ?? 15_000) : false,
   })
 
   const initializePairingMutation = useMutation({
