@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 <#
-  Rebuild native Node addons in release\engine using the embedded node.exe.
-  Run after scripts\embed-node.ps1 so ABI matches the shipped runtime.
+  Ensure better-sqlite3 loads under the embedded node.exe shipped in release\runtime.
+  Run after scripts\embed-node.ps1.
 #>
 param(
   [string]$ReleaseRoot = ""
@@ -27,35 +27,38 @@ if (-not (Test-Path $betterSqliteDir)) {
   throw ('Missing better-sqlite3 at ' + $betterSqliteDir + ' - run scripts\build-release.bat first.')
 }
 
-$nodeVersion = & $nodeExe -p "process.versions.node"
-Write-Host "[ctrack] Rebuilding native modules for embedded Node v$nodeVersion ..."
-
-$nodeGyp = Join-Path $engineDir "node_modules\node-gyp\bin\node-gyp.js"
-if (-not (Test-Path $nodeGyp)) {
-  $nodeGyp = Join-Path $betterSqliteDir "node_modules\node-gyp\bin\node-gyp.js"
-}
-if (-not (Test-Path $nodeGyp)) {
-  throw "node-gyp not found under release\engine\node_modules"
-}
-
-Push-Location $betterSqliteDir
-try {
-  & $nodeExe $nodeGyp rebuild --release
-  if ($LASTEXITCODE -ne 0) {
-    throw "node-gyp rebuild failed with exit code $LASTEXITCODE"
+function Test-BetterSqliteLoad {
+  param([string]$Node, [string]$Engine)
+  Push-Location $Engine
+  try {
+    & $Node -e "require('better-sqlite3'); console.log('[ctrack] better-sqlite3 load OK')"
+    return ($LASTEXITCODE -eq 0)
+  } finally {
+    Pop-Location
   }
-} finally {
-  Pop-Location
 }
 
+$nodeVersion = & $nodeExe -p "process.versions.node"
+Write-Host "[ctrack] Verifying native modules for embedded Node v$nodeVersion ..."
+
+if (Test-BetterSqliteLoad -Node $nodeExe -Engine $engineDir) {
+  Write-Host "[ctrack] Native module verification complete."
+  exit 0
+}
+
+Write-Host "[ctrack] better-sqlite3 failed to load - rebuilding with npm ..."
 Push-Location $engineDir
 try {
-  & $nodeExe -e "require('better-sqlite3'); console.log('[ctrack] better-sqlite3 load OK')"
+  npm rebuild better-sqlite3 --build-from-source
   if ($LASTEXITCODE -ne 0) {
-    throw "better-sqlite3 failed to load under embedded Node"
+    throw "npm rebuild better-sqlite3 failed with exit code $LASTEXITCODE"
   }
 } finally {
   Pop-Location
+}
+
+if (-not (Test-BetterSqliteLoad -Node $nodeExe -Engine $engineDir)) {
+  throw "better-sqlite3 still failed to load under embedded Node after rebuild"
 }
 
 Write-Host "[ctrack] Native module rebuild complete."
