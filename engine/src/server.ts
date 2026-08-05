@@ -42,6 +42,7 @@ import {
 import { getAuthSnapshot, getAuthStatus, getAuthStorePath, getCredentialsPath, pairDevice, refreshDeviceToken, syncAccountEmail, unpairDevice } from "./auth-store.js"
 import { getLocalAuthLinkUrl, pairFromAccessToken, renderAuthLinkPage, resolveSupabaseJsPath } from "./auth-link-page.js"
 import { applyDownloadedUpdate, checkForUpdate, downloadUpdate, getPendingUpdate, type UpdateProduct } from "./update-service.js"
+import { startAutoUpdateLoop } from "./auto-update.js"
 import { migratePlainCredentialsToDpapi } from "./credentials-dpapi.js"
 import { ENGINE_VERSION } from "./generated/engine-version.js"
 
@@ -1457,6 +1458,7 @@ export function startEngine(): Promise<http.Server> {
         console.log(`[ctrack-engine] http://${HOST}:${PORT}`)
         console.log(`[ctrack-engine] Local UI: http://${HOST}:${PORT}/`)
         console.log(`[ctrack-engine] CORS origins:`, parseCorsOrigins().join(", "))
+        startAutoUpdateLoop({ queueManager })
         void (async () => {
           await new Promise((r) => setTimeout(r, 2500))
           try {
@@ -1472,7 +1474,7 @@ export function startEngine(): Promise<http.Server> {
             }
             const n = status.nukeInstallations?.length ?? 0
             console.log(
-              `[ctrack-engine] tools: EXR=${status.activeExrBackend ?? "none"} nuke=${n} install(s) missing=${status.missing.join(",") || "none"}`
+              `[ctrack-engine] tools: EXR=${status.activeExrBackend ?? "none"} nuke=${n} install(s) missing=${status.missing.join(",") || "none"} | version=${ENGINE_VERSION}`
             )
           } catch (e) {
             console.warn("[ctrack-engine] startup tool scan failed:", e)

@@ -379,9 +379,16 @@ class TrayHost:
             if health_ok():
                 break
             time.sleep(0.5)
-        update_poll_seconds = 24 * 60 * 60
+        # Engine Node also auto-updates; tray backs it up every 4h (retry sooner if busy).
+        update_poll_seconds = 4 * 60 * 60
+        busy_retry_seconds = 15 * 60
         self._check_for_updates(manual=False)
-        while not self._stop.wait(update_poll_seconds):
+        while not self._stop.is_set():
+            wait = update_poll_seconds
+            if self._get_pending_update() is not None and not self._engine_is_idle():
+                wait = busy_retry_seconds
+            if self._stop.wait(wait):
+                break
             self._check_for_updates(manual=False)
 
     def _poll_status(self) -> None:
