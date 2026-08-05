@@ -33,14 +33,26 @@ export interface EngineProbeResult {
 }
 
 const START_ENGINE_HINT =
-  "Start CTrack Engine on this PC (tray: scripts\\start-engine-tray.vbs), then allow local network access in Chrome if prompted."
+  "Start CTrack Engine on this PC (Start Menu → Start CTrack Engine), then click Connect below."
+
+const LOCAL_NETWORK_OK_KEY = "ctrack-local-network-ok"
+
+export function hasLocalNetworkAccessFlag(): boolean {
+  if (typeof window === "undefined") return false
+  return window.sessionStorage.getItem(LOCAL_NETWORK_OK_KEY) === "1"
+}
+
+export function markLocalNetworkAccessGranted(): void {
+  if (typeof window === "undefined") return
+  window.sessionStorage.setItem(LOCAL_NETWORK_OK_KEY, "1")
+}
 
 export function buildEngineOfflineMessage(engineBase: string, error: string | null): string {
   if (!error) {
     return `${START_ENGINE_HINT} Expected engine at ${engineBase}.`
   }
   if (error.includes("Failed to fetch") || error.includes("NetworkError") || error.includes("aborted")) {
-    return `${START_ENGINE_HINT} Cannot reach ${engineBase} from this browser.`
+    return `Chrome is blocking ${engineBase} from this website. Click "Connect local engine" on the setup screen and choose Allow when Chrome asks for local network access. (Do not use ping with a port — it only tests the IP, not the engine.)`
   }
   return `${START_ENGINE_HINT} ${error}`
 }

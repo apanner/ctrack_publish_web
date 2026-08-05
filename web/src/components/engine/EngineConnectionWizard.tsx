@@ -8,7 +8,7 @@ import {
   requestEngineInstallerDownloadUrl,
   type InstallerDownloadSource,
 } from "@/lib/engine-installer"
-import { probeEngineConnection } from "@/lib/engine-connection"
+import { probeEngineConnection, markLocalNetworkAccessGranted, hasLocalNetworkAccessFlag } from "@/lib/engine-connection"
 import { useEnginePairing } from "@/hooks/use-engine-pairing"
 import { useEngineRelease } from "@/hooks/use-engine-release"
 import { EngineDiagnostics } from "@/components/engine/EngineDiagnostics"
@@ -66,10 +66,12 @@ export function EngineConnectionWizard({ onConnected }: EngineConnectionWizardPr
   const [isVerifyBusy, setIsVerifyBusy] = useState(false)
   const [isEngineOnline, setIsEngineOnline] = useState(false)
   const [probeError, setProbeError] = useState<string | null>(null)
+  const [localAccessGranted, setLocalAccessGranted] = useState(hasLocalNetworkAccessFlag)
+  const [isConnectBusy, setIsConnectBusy] = useState(false)
   const autoDownloadAttemptedRef = useRef(false)
   const hasAutoContinuedRef = useRef(false)
   const { pairStatusQuery, initializePairingMutation, completePairingMutation } = useEnginePairing({
-    enabled: true,
+    enabled: localAccessGranted || isEngineOnline,
     refetchIntervalMs: 3000,
   })
   const latestReleaseQuery = useEngineRelease({ enabled: true })
@@ -100,6 +102,8 @@ export function EngineConnectionWizard({ onConnected }: EngineConnectionWizardPr
     if (probe.online) {
       setEngineVersion(probe.health?.version ?? null)
       setExrBackend(probe.activeExrBackend)
+      markLocalNetworkAccessGranted()
+      setLocalAccessGranted(true)
       setActiveStepIndex((current) => Math.max(current, WIZARD_STEPS.length - 1))
       continueToApp()
       return true
@@ -107,7 +111,18 @@ export function EngineConnectionWizard({ onConnected }: EngineConnectionWizardPr
     return false
   }, [continueToApp])
 
+  const handleConnectLocalEngine = useCallback(async (): Promise<void> => {
+    setIsConnectBusy(true)
+    setProbeError(null)
+    try {
+      await refreshEngineProbe()
+    } finally {
+      setIsConnectBusy(false)
+    }
+  }, [refreshEngineProbe])
+
   useEffect(() => {
+    if (!localAccessGranted) return
     let cancelled = false
 
     async function pollEngine(): Promise<void> {
@@ -130,7 +145,7 @@ export function EngineConnectionWizard({ onConnected }: EngineConnectionWizardPr
       cancelled = true
       window.clearInterval(intervalId)
     }
-  }, [continueToApp])
+  }, [localAccessGranted, continueToApp])
 
   useEffect(() => {
     if (isPaired && isEngineOnline) {
@@ -226,7 +241,7 @@ export function EngineConnectionWizard({ onConnected }: EngineConnectionWizardPr
             <p className="mt-2 text-sm text-gray-400">
               {isEngineOnline
                 ? "Local engine detected. Opening CTrack Publish…"
-                : `The browser is signed in, but it cannot reach ${ENGINE_BASE} yet. Follow the steps below to install and pair this workstation.`}
+                : "Your engine tray can be running while Chrome still blocks this website from localhost. Click Connect below and allow local network access when prompted."}
             </p>
           </div>
           <div
@@ -289,9 +304,24 @@ export function EngineConnectionWizard({ onConnected }: EngineConnectionWizardPr
           {activeStep.id === "detect" && (
             <div className="space-y-3 text-sm">
               <p className="text-gray-300">
-                We could not connect to your engine over localhost. This usually means the engine is not installed,
-                the tray process is not running, or localhost access is blocked.
+                CTrack Publish runs in your browser, but transcoding runs in a local engine on{" "}
+                <span className="font-mono text-cyan-200">{ENGINE_BASE}</span>. Chrome requires a one-time
+                permission before this site can talk to localhost — even if the tray already says Signed in.
               </p>
+              <button
+                type="button"
+                onClick={() => void handleConnectLocalEngine()}
+                disabled={isConnectBusy}
+                className="inline-flex items-center gap-2 rounded-md bg-[#0096D6] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#0096D6]/90 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isConnectBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
+                Connect local engine
+              </button>
+              {probeError && !isEngineOnline && (
+                <p className="rounded border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                  {probeError}
+                </p>
+              )}
               {latestVersion && (
                 <p className="rounded border border-cyan-400/30 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-200">
                   Latest published engine: <span className="font-semibold">v{latestVersion}</span>
@@ -299,11 +329,11 @@ export function EngineConnectionWizard({ onConnected }: EngineConnectionWizardPr
               )}
               <button
                 type="button"
-                onClick={() => void refreshEngineProbe()}
+                onClick={() => void handleConnectLocalEngine()}
                 className="inline-flex items-center gap-2 rounded-md border border-white/20 bg-white/5 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10"
               >
                 <RefreshCw className="h-4 w-4" />
-                Check for running engine
+                Retry connect
               </button>
               <button
                 type="button"
@@ -316,9 +346,12 @@ export function EngineConnectionWizard({ onConnected }: EngineConnectionWizardPr
               <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-amber-200">
                 <p className="font-medium">Troubleshoot quickly</p>
                 <ul className="mt-2 list-disc space-y-1 pl-5 text-xs">
-                  <li>Confirm CTrack Engine is installed on this machine.</li>
-                  <li>Start "CTrack Engine Tray" from the Start Menu.</li>
-                  <li>Allow browser private-network access to localhost when prompted.</li>
+                  <li>Start "CTrack Engine" from the Start Menu (tray should show Signed in).</li>
+                <li>
+                  Click <span className="font-medium">Connect local engine</span> above and choose{" "}
+                  <span className="font-medium">Allow</span> in Chrome&apos;s local network prompt.
+                </li>
+                <li>If no prompt appears: address bar lock icon → Site settings → Local network access → Allow.</li>
                 </ul>
               </div>
             </div>
@@ -357,11 +390,11 @@ export function EngineConnectionWizard({ onConnected }: EngineConnectionWizardPr
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
-                  onClick={() => void refreshEngineProbe()}
+                  onClick={() => void handleConnectLocalEngine()}
                   className="inline-flex items-center gap-2 rounded-md border border-emerald-400/40 bg-emerald-500/10 px-4 py-2 text-sm font-medium text-emerald-100 transition hover:bg-emerald-500/20"
                 >
                   <RefreshCw className="h-4 w-4" />
-                  Engine is installed — continue
+                  Engine is installed — connect
                 </button>
                 <button
                   type="button"
