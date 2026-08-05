@@ -33,26 +33,42 @@ New-Item -ItemType Directory -Force -Path $cacheDir, $runtimeRoot, $ocioDir | Ou
 function Download-File {
   param(
     [Parameter(Mandatory = $true)][string[]]$Urls,
-    [Parameter(Mandatory = $true)][string]$Destination
+    [Parameter(Mandatory = $true)][string]$Destination,
+    [int64]$MinBytes = 1
   )
   if ((Test-Path $Destination) -and !$Force) {
-    Write-Host "[ctrack] Using cached $(Split-Path $Destination -Leaf)"
-    return
+    $cached = Get-Item -LiteralPath $Destination
+    if ($cached.Length -ge $MinBytes) {
+      Write-Host "[ctrack] Using cached $(Split-Path $Destination -Leaf) ($([math]::Round($cached.Length / 1MB, 1)) MB)"
+      return
+    }
+    Write-Warning "[ctrack] Cached file too small ($($cached.Length) bytes) - re-downloading"
+    Remove-Item -LiteralPath $Destination -Force
   }
   [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+  $headers = @{
+    'User-Agent' = 'CTrack-Engine/1.0 (Windows media-runtime-provision)'
+    'Accept'     = '*/*'
+  }
   $lastError = $null
   foreach ($url in $Urls) {
-  for ($attempt = 1; $attempt -le 3; $attempt++) {
-    try {
-      Write-Host "[ctrack] Downloading $url (attempt $attempt/3)"
-      Invoke-WebRequest -Uri $url -OutFile $Destination -UseBasicParsing
-      return
-    } catch {
-      $lastError = $_
-      Write-Warning "[ctrack] Download failed: $($_.Exception.Message)"
-      if ($attempt -lt 3) { Start-Sleep -Seconds (5 * $attempt) }
+    for ($attempt = 1; $attempt -le 3; $attempt++) {
+      try {
+        Write-Host "[ctrack] Downloading $url (attempt $attempt/3)"
+        Invoke-WebRequest -Uri $url -OutFile $Destination -UseBasicParsing -Headers $headers -TimeoutSec 600
+        $size = (Get-Item -LiteralPath $Destination).Length
+        if ($size -lt $MinBytes) {
+          throw "Downloaded file too small ($($size) bytes)"
+        }
+        Write-Host "[ctrack] Downloaded $(Split-Path $Destination -Leaf) ($([math]::Round($size / 1MB, 1)) MB)"
+        return
+      } catch {
+        $lastError = $_
+        Write-Warning "[ctrack] Download failed: $($_.Exception.Message)"
+        if (Test-Path $Destination) { Remove-Item -LiteralPath $Destination -Force -ErrorAction SilentlyContinue }
+        if ($attempt -lt 3) { Start-Sleep -Seconds (5 * $attempt) }
+      }
     }
-  }
   }
   throw "Failed to download after retries: $($Urls -join ', '). Last error: $lastError"
 }
@@ -61,15 +77,21 @@ function Ensure-FfmpegRuntime {
   if ((Test-Path (Join-Path $ffmpegDir "ffmpeg.exe")) -and !$Force) {
     return
   }
-  $ffmpegZip = Join-Path $cacheDir "ffmpeg-release-essentials.zip"
+  # Official Windows builds per https://ffmpeg.org/download.html#build-windows (BtbN on GitHub).
+  # gyan.dev is listed there too but often returns 503 - use as last resort only.
+  $btbnBase = 'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest'
+  $ffmpegUrls = @(
+    "$btbnBase/ffmpeg-n7.1-latest-win64-gpl-7.1.zip",
+    "$btbnBase/ffmpeg-n8.1-latest-win64-gpl-8.1.zip",
+    "$btbnBase/ffmpeg-master-latest-win64-gpl.zip",
+    'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip'
+  )
+  $ffmpegZip = Join-Path $cacheDir "ffmpeg-win64-gpl.zip"
   $ffmpegExtractDir = Join-Path $cacheDir "ffmpeg-extract"
   if (Test-Path $ffmpegDir) { Remove-Item -Recurse -Force $ffmpegDir }
   if (Test-Path $ffmpegExtractDir) { Remove-Item -Recurse -Force $ffmpegExtractDir }
   New-Item -ItemType Directory -Force -Path $ffmpegDir, $ffmpegExtractDir | Out-Null
-  Download-File -Urls @(
-    'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip',
-    'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip'
-  ) -Destination $ffmpegZip
+  Download-File -Urls $ffmpegUrls -Destination $ffmpegZip -MinBytes 10MB
   Expand-Archive -Path $ffmpegZip -DestinationPath $ffmpegExtractDir -Force
   $ffmpegExe = Get-ChildItem -Path $ffmpegExtractDir -Recurse -Filter "ffmpeg.exe" | Select-Object -First 1
   $ffprobeExe = Get-ChildItem -Path $ffmpegExtractDir -Recurse -Filter "ffprobe.exe" | Select-Object -First 1
@@ -77,6 +99,11 @@ function Ensure-FfmpegRuntime {
   Copy-Item $ffmpegExe.FullName (Join-Path $ffmpegDir "ffmpeg.exe") -Force
   if ($ffprobeExe) {
     Copy-Item $ffprobeExe.FullName (Join-Path $ffmpegDir "ffprobe.exe") -Force
+  }
+  # Copy sibling DLLs (BtbN full builds ship codecs in bin/).
+  $binDir = $ffmpegExe.Directory
+  Get-ChildItem -Path $binDir -Filter "*.dll" -ErrorAction SilentlyContinue | ForEach-Object {
+    Copy-Item $_.FullName (Join-Path $ffmpegDir $_.Name) -Force
   }
   Remove-Item -Recurse -Force $ffmpegExtractDir
   Write-Host "[ctrack] FFmpeg ready: $ffmpegDir"
