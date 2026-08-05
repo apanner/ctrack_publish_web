@@ -307,6 +307,10 @@ export function EngineConnectionWizard({ onConnected }: EngineConnectionWizardPr
           {activeStep.id === "install" && (
             <div className="space-y-3 text-sm text-gray-300">
               <p>Run the downloaded `.exe` and complete setup with default options.</p>
+              <p className="text-xs text-gray-400">
+                FFmpeg, OpenImageIO, and OCIO are downloaded automatically on first transcode, or included if you chose
+                the full media pack during install.
+              </p>
               <ol className="list-decimal space-y-1 pl-5 text-xs">
                 <li>Open the installer from your Downloads folder.</li>
                 <li>Finish setup, then launch the "CTrack Engine Tray" shortcut.</li>

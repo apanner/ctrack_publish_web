@@ -3,9 +3,11 @@ setlocal
 cd /d "%~dp0.."
 
 set "NO_PAUSE="
+set "INSTALLER_BUILD="
 for %%A in (%*) do (
   if /i "%%~A"=="/nopause" set "NO_PAUSE=1"
   if /i "%%~A"=="/bundle-env" set "CTRACK_BUNDLE_ENV=1"
+  if /i "%%~A"=="/installer" set "INSTALLER_BUILD=1"
 )
 if "%CTRACK_BUNDLE_ENV_FILE%"=="" set "CTRACK_BUNDLE_ENV_FILE=engine\.env"
 
@@ -18,8 +20,10 @@ call npm install --ignore-scripts
 if errorlevel 1 exit /b 1
 
 echo [ctrack] Provisioning engine runtime + GUI Python...
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0ensure-engine-runtime.ps1" -TargetRoot engine
-if errorlevel 1 exit /b 1
+if /i not "%INSTALLER_BUILD%"=="1" (
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0ensure-engine-runtime.ps1" -TargetRoot engine
+  if errorlevel 1 exit /b 1
+)
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0provision-gui-python.ps1" -TargetRoot engine
 if errorlevel 1 exit /b 1
 
@@ -36,8 +40,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0provision-app-icons.ps
 if errorlevel 1 exit /b 1
 
 echo [ctrack] Building web...
-call npm run build -w web
-if errorlevel 1 exit /b 1
+if /i not "%INSTALLER_BUILD%"=="1" (
+  call npm run build -w web
+  if errorlevel 1 exit /b 1
+) else (
+  echo [ctrack] Skipping web build for installer package ^(hosted Vercel UI^).
+)
 
 set "OUT=%~dp0..\release"
 if not exist "%OUT%" mkdir "%OUT%"
@@ -46,10 +54,12 @@ echo [ctrack] Staging release\ ...
 if exist "%OUT%\engine" rmdir /S /Q "%OUT%\engine"
 if exist "%OUT%\web" rmdir /S /Q "%OUT%\web"
 mkdir "%OUT%\engine" 2>nul
-mkdir "%OUT%\web" 2>nul
+if /i not "%INSTALLER_BUILD%"=="1" mkdir "%OUT%\web" 2>nul
 xcopy /E /I /Y "engine\dist" "%OUT%\engine\dist\" >nul
 xcopy /E /I /Y "engine\python" "%OUT%\engine\python\" >nul
-xcopy /E /I /Y "web\dist" "%OUT%\web\dist\" >nul
+if /i not "%INSTALLER_BUILD%"=="1" (
+  if exist "web\dist" xcopy /E /I /Y "web\dist" "%OUT%\web\dist\" >nul
+)
 copy /Y "engine\.env.example" "%OUT%\engine\.env.example" >nul 2>nul
 copy /Y "web\.env.example" "%OUT%\web\.env.example" >nul 2>nul
 copy /Y "engine\package.json" "%OUT%\engine\package.json" >nul
@@ -61,6 +71,11 @@ echo [ctrack] Skipping legacy WPF tray scripts from release package.
 copy /Y "%~dp0open-tray-settings.bat" "%OUT%\open-tray-settings.bat" >nul
 copy /Y "%~dp0open-tray-settings.vbs" "%OUT%\open-tray-settings.vbs" >nul
 copy /Y "%~dp0open-tray-settings.ps1" "%OUT%\open-tray-settings.ps1" >nul
+if not exist "%OUT%\scripts" mkdir "%OUT%\scripts"
+copy /Y "%~dp0download-media-pack.ps1" "%OUT%\scripts\download-media-pack.ps1" >nul
+copy /Y "%~dp0ensure-engine-runtime.ps1" "%OUT%\scripts\ensure-engine-runtime.ps1" >nul
+if exist "%~dp0..\release\ctrack-engine.exe" copy /Y "%~dp0..\release\ctrack-engine.exe" "%OUT%\ctrack-engine.exe" >nul
+if exist "engine-go\..\release\ctrack-engine.exe" copy /Y "engine-go\..\release\ctrack-engine.exe" "%OUT%\ctrack-engine.exe" >nul
 if not exist "%OUT%\engine\assets" mkdir "%OUT%\engine\assets"
 xcopy /E /I /Y "engine\assets" "%OUT%\engine\assets\" >nul 2>nul
 copy /Y "%~dp0..\installer\ENGINE-INSTALL.txt" "%OUT%\ENGINE-INSTALL.txt" >nul 2>nul
@@ -99,8 +114,17 @@ if exist "..\..\node_modules\better-sqlite3" (
 )
 popd
 
-echo [ctrack] Embedding portable Python + FFmpeg runtime...
-if exist "engine\runtime\python\python.exe" (
+echo [ctrack] Embedding portable Python runtime...
+if /i "%INSTALLER_BUILD%"=="1" (
+  echo [ctrack] Installer build: media pack ^(FFmpeg/OIIO/OCIO^) excluded — downloaded on first transcode.
+  if exist "engine\runtime\python\python.exe" (
+    if not exist "%OUT%\engine\runtime" mkdir "%OUT%\engine\runtime"
+    if exist "engine\runtime\python" xcopy /E /I /Y "engine\runtime\python" "%OUT%\engine\runtime\python\" >nul
+  ) else (
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0build-python-runtime.ps1"
+    if errorlevel 1 exit /b 1
+  )
+) else if exist "engine\runtime\python\python.exe" (
   echo [ctrack] Reusing dev engine runtime in release\engine\runtime ...
   if not exist "%OUT%\engine\runtime" mkdir "%OUT%\engine\runtime"
   xcopy /E /I /Y "engine\runtime" "%OUT%\engine\runtime\" >nul

@@ -4,6 +4,7 @@ import path from "node:path"
 import { randomBytes } from "node:crypto"
 import { type DBJob, type DBJobEvent, type DBJobEventInput, QueueManager } from "./queue-manager.js"
 import { PythonManager } from "./python-manager.js"
+import { addJobAndEmit, updateJobAndEmit } from "./queue-events.js"
 
 export interface PublishEnqueueBody {
   file_path: string
@@ -17,7 +18,7 @@ export interface PublishEnqueueBody {
   auto_process?: boolean
 }
 
-interface PublishApiDeps {
+export interface PublishApiDeps {
   queueManager: QueueManager
   pythonManager: PythonManager
   onQueueEvent?: (event: DBJobEvent) => void
@@ -114,7 +115,7 @@ export function enqueuePublishJob(body: PublishEnqueueBody, deps: PublishApiDeps
     meta: encodeMeta(body.meta) ?? undefined,
     created_at: now,
   }
-  deps.queueManager.addJob(job)
+  addJobAndEmit(deps.queueManager, job)
   addQueueEvent(deps, {
     job_id: job.id,
     run_id: null,
@@ -133,14 +134,19 @@ export function enqueuePublishJob(body: PublishEnqueueBody, deps: PublishApiDeps
   return job
 }
 
-export async function headlessProcessJob(jobId: string, deps: PublishApiDeps): Promise<PublishProcessResult> {
+export async function headlessProcessJob(
+  jobId: string,
+  deps: PublishApiDeps,
+  options?: { finalize?: boolean }
+): Promise<PublishProcessResult> {
+  const finalize = options?.finalize !== false
   const job = deps.queueManager.getJob(jobId)
   if (!job) throw new Error(`Job not found: ${jobId}`)
   if (job.status === "transcoding" || job.status === "uploading" || job.status === "submitting") {
     throw new Error(`Job is already processing: ${jobId}`)
   }
   if (!fs.existsSync(job.file_path)) {
-    deps.queueManager.updateJob(jobId, { status: "error", error: `Input file not found: ${job.file_path}` })
+    updateJobAndEmit(deps.queueManager, jobId, { status: "error", error: `Input file not found: ${job.file_path}` })
     addQueueEvent(deps, {
       job_id: jobId,
       component: "python",
@@ -152,7 +158,7 @@ export async function headlessProcessJob(jobId: string, deps: PublishApiDeps): P
     throw new Error(`Input file not found: ${job.file_path}`)
   }
   const runId = `${jobId}-${Date.now()}`
-  deps.queueManager.updateJob(jobId, { status: "transcoding", progress: 10 })
+  updateJobAndEmit(deps.queueManager, jobId, { status: "transcoding", progress: 10 })
   addQueueEvent(deps, {
     job_id: jobId,
     run_id: runId,
@@ -184,11 +190,17 @@ export async function headlessProcessJob(jobId: string, deps: PublishApiDeps): P
       output_path: normalizedOutputPath,
       processed_at: new Date().toISOString(),
     }
-    deps.queueManager.updateJob(jobId, {
-      status: "completed",
-      progress: 100,
-      meta: JSON.stringify(nextMeta),
-    })
+    updateJobAndEmit(deps.queueManager, jobId, finalize
+      ? {
+          status: "completed",
+          progress: 100,
+          meta: JSON.stringify(nextMeta),
+        }
+      : {
+          status: "uploading",
+          progress: 40,
+          meta: JSON.stringify(nextMeta),
+        })
     addQueueEvent(deps, {
       job_id: jobId,
       run_id: runId,
@@ -204,7 +216,7 @@ export async function headlessProcessJob(jobId: string, deps: PublishApiDeps): P
     return { job: updated, output_path: normalizedOutputPath }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    deps.queueManager.updateJob(jobId, { status: "error", error: message })
+    updateJobAndEmit(deps.queueManager, jobId, { status: "error", error: message })
     addQueueEvent(deps, {
       job_id: jobId,
       run_id: runId,

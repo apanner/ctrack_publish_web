@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { useContextStore } from '@/hooks/use-context-store';
 import { useAuth } from '@/hooks/use-auth';
 import { useAppLogStore } from '@/store/app-log-store';
+import { usePublishQueueStore } from '@/store/publish-queue-store';
 import { DEFAULT_SETTINGS } from '@/types/settings';
 import type { AppSettings } from '@/types/settings';
 
@@ -254,44 +255,20 @@ export interface QueueLogEventInput {
 }
 
 export function usePublishQueue() {
-    const [queue, setQueue] = useState<PublishJob[]>([]);
+    const queue = usePublishQueueStore((s) => s.queue);
+    const setQueue = usePublishQueueStore((s) => s.setQueue);
+    const patchJob = usePublishQueueStore((s) => s.patchJob);
+    const hydrateFromEngine = usePublishQueueStore((s) => s.hydrateFromEngine);
+    const subscribeEngineEvents = usePublishQueueStore((s) => s.subscribeEngineEvents);
     const { projectId, projectCode, episodeCode, shotId, shotCode: ctxShotCode, sequenceName, taskId, elementCategory, elementType } = useContextStore();
     const { user, profile } = useAuth();
     const addLog = useAppLogStore((s) => s.addLog);
 
-    // 1. Initial Load from SQLite
+    // Shared queue: hydrate once + live SSE job status from engine
     useEffect(() => {
-        (window as any).ipcRenderer.invoke('queue:get-jobs').then((jobs: any[]) => {
-            const mapped = jobs.map((j) => {
-                let meta: PublishJobMeta | undefined;
-                try {
-                    if (j.meta && typeof j.meta === 'string') meta = JSON.parse(j.meta) as PublishJobMeta;
-                } catch (_) { /* ignore */ }
-                return {
-                    id: j.id,
-                    filePath: j.file_path,
-                    status: j.status as PublishStatus,
-                    progress: j.progress,
-                    error: j.error,
-                    context: {
-                        projectId: j.project_id,
-                        shotId: j.shot_id,
-                        shotCode: j.shot_code,
-                        taskId: j.task_id,
-                        taskName: j.task_name || "Task",
-                        trackingNumber: j.tracking_number
-                    },
-                    meta,
-                    size: j.size || 0
-                };
-            });
-            setQueue(prev => {
-                const loadedIds = new Set(mapped.map(j => j.id));
-                const added = prev.filter(j => !loadedIds.has(j.id));
-                return [...mapped, ...added];
-            });
-        });
-    }, []);
+        void hydrateFromEngine();
+        return subscribeEngineEvents();
+    }, [hydrateFromEngine, subscribeEngineEvents]);
 
     // 2. Track currently processing job for log attribution
     const [activeJobId, setActiveJobId] = useState<string | null>(null);
@@ -329,15 +306,17 @@ export function usePublishQueue() {
     useEffect(() => {
         const ipc = (window as any).ipcRenderer;
         if (!ipc?.on) return;
-        const handler = (_event: any, data: { key: string; progress: number }) => {
-            if (!activeJobId) return;
-            const prev = uploadProgressRef.current[activeJobId] ?? 0;
+        const handler = (_event: unknown, data: { jobId?: string; key: string; progress: number }) => {
+            const jobId = data.jobId ?? activeJobId;
+            if (!jobId) return;
+            const prev = uploadProgressRef.current[jobId] ?? 0;
             const next = Number(data.progress || 0);
             if (next < 100 && next - prev < 10) return;
-            uploadProgressRef.current[activeJobId] = next;
-            const runId = activeJobRunRef.current[activeJobId] ?? null;
+            uploadProgressRef.current[jobId] = next;
+            patchJob(jobId, { progress: Math.min(95, 50 + Math.floor(next / 2)) });
+            const runId = activeJobRunRef.current[jobId] ?? null;
             ipc.invoke('queue:add-event', {
-                job_id: activeJobId,
+                job_id: jobId,
                 run_id: runId,
                 attempt: 1,
                 level: 'info',
@@ -352,7 +331,13 @@ export function usePublishQueue() {
         return () => {
             if (typeof unsubscribe === 'function') unsubscribe();
         };
-    }, [activeJobId]);
+    }, [activeJobId, patchJob]);
+
+    const dispatchJobToEngine = useCallback(async (jobId: string) => {
+        const ipc = (window as unknown as { ipcRenderer?: { invoke: (c: string, p?: unknown) => Promise<unknown> } }).ipcRenderer;
+        if (!ipc?.invoke) return;
+        await ipc.invoke('queue:dispatch-job', { jobId });
+    }, []);
 
     const addJob = useCallback(async (filePath: string, options?: PublishJob['options'], meta?: PublishJobMeta, customContext?: { projectId?: string | null, projectCode?: string | null, episodeCode?: string | null, shotId?: string | null, shotCode?: string | null, sequenceName?: string | null, taskId?: string | null, taskName?: string | null, trackingNumber?: string | null }): Promise<string> => {
         const id = Math.random().toString(36).substring(7);
@@ -431,9 +416,9 @@ export function usePublishQueue() {
     }, [projectId, projectCode, episodeCode, shotId, ctxShotCode, sequenceName, taskId]);
 
     const updateJob = useCallback((id: string, updates: Partial<PublishJob>) => {
-        setQueue(prev => prev.map(job => job.id === id ? { ...job, ...updates } : job));
+        patchJob(id, updates);
 
-        const dbUpdates: any = {};
+        const dbUpdates: Record<string, unknown> = {};
         if (updates.status) dbUpdates.status = updates.status;
         if (updates.progress !== undefined) dbUpdates.progress = updates.progress;
         if (updates.error) dbUpdates.error = updates.error;
@@ -441,7 +426,7 @@ export function usePublishQueue() {
         if (Object.keys(dbUpdates).length > 0) {
             (window as any).ipcRenderer.invoke('queue:update-job', { id, updates: dbUpdates });
         }
-    }, []);
+    }, [patchJob]);
 
     const addJobEvent = useCallback((event: QueueLogEventInput) => {
         const runId = event.runId ?? activeJobRunRef.current[event.jobId] ?? null;
@@ -1406,7 +1391,12 @@ export function usePublishQueue() {
             if (next.meta && typeof next.meta === 'string') meta = JSON.parse(next.meta) as PublishJobMeta;
         } catch (_) { }
         const isElement = meta.tab === 'element';
+        const engineOwned = meta.processMode === 'engine' || Boolean((meta as PublishJobMeta & { uploadPlan?: unknown }).uploadPlan);
         try {
+            if (engineOwned) {
+                await dispatchJobToEngine(next.id);
+                return;
+            }
             if (isElement) {
                 await startPublishElement(next.id, { elementNotes: meta.elementNotes });
             } else {
@@ -1416,24 +1406,25 @@ export function usePublishQueue() {
         } finally {
             setActiveJobId(null);
         }
-    }, [startPublish, startPublishElement]);
+    }, [startPublish, startPublishElement, dispatchJobToEngine]);
 
     processNextJobRef.current = processNextJob;
 
     const removeJob = useCallback((id: string) => {
-        setQueue(prev => prev.filter(job => job.id !== id));
+        usePublishQueueStore.getState().removeJob(id);
         (window as any).ipcRenderer.invoke('queue:remove-job', id);
     }, []);
 
     const clearQueue = useCallback(async () => {
-        setQueue(prev => prev.filter(j => j.status !== 'completed'));
+        setQueue(queue.filter(j => j.status !== 'completed'));
         await (window as any).ipcRenderer.invoke('queue:clear');
-    }, []);
+        await hydrateFromEngine();
+    }, [queue, setQueue, hydrateFromEngine]);
 
     const purgeQueue = useCallback(async () => {
         setQueue([]);
         await (window as any).ipcRenderer.invoke('queue:purge');
-    }, []);
+    }, [setQueue]);
 
     const addJobs = useCallback(async (paths: string[], options?: PublishJob['options'], meta?: PublishJobMeta, autoStart: boolean = false) => {
         await Promise.all(paths.map((p) => addJob(p, options, meta)));

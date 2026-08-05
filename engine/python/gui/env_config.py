@@ -65,4 +65,10 @@ def resolve_web_base(install_root: Path | None = None) -> str:
 
 
 def resolve_login_url(install_root: Path | None = None) -> str:
+    """Browser pairing URL on the hosted web app (replaces CustomTkinter sign-in card)."""
+    return f"{resolve_web_base(install_root)}/link-engine"
+
+
+def resolve_local_auth_link_url(install_root: Path | None = None) -> str:
+    """Legacy local engine pairing page (fallback when web is unreachable)."""
     return "http://127.0.0.1:7777/auth/link"

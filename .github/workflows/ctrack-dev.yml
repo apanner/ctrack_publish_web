@@ -20,6 +20,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache-dependency-path: engine-go/go.sum
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -33,13 +39,18 @@ jobs:
       - name: Build engine + web
         run: npm run build
 
+      - name: Build Go tray binary
+        shell: cmd
+        run: scripts\build-go-engine.bat
+
       - name: Verify Python GUI syntax
         shell: powershell
         run: |
           $files = @(
             "engine/python/gui/api.py",
             "engine/python/gui/tray_app.py",
-            "engine/python/gui/settings_window.py"
+            "engine/python/gui/settings_window.py",
+            "engine/python/gui/engine_window.py"
           )
           foreach ($file in $files) {
             python -m py_compile $file

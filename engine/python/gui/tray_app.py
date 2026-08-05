@@ -19,7 +19,8 @@ from gui.instance_lock import InstanceLock, clear_stale_lock
 from gui.icons import load_tray_image
 from gui.paths import ensure_gui_path, get_engine_dir, get_python_dir, get_tray_bat, resolve_install_root
 from gui.startup import is_launch_at_login, set_launch_at_login
-from gui.tray_anim import launch_settings
+from gui.env_config import resolve_login_url
+from gui.tray_anim import launch_settings, open_browser_url
 
 try:
     import pystray
@@ -147,11 +148,17 @@ class TrayHost:
         if is_locally_paired():
             launch_settings(self.install_root, page="Account", from_tray=True, pythonw_exe=self._pythonw_exe())
             return
-        subprocess.Popen(
-            [self._pythonw_exe(), "-m", "gui.login_prompt", "--install-root", str(self.install_root)],
-            cwd=str(self.engine_dir / "python"),
-            creationflags=self._hidden_flags(),
-        )
+        self._open_link_engine_in_browser()
+
+    def _open_link_engine_in_browser(self) -> None:
+        """Browser-only sign-in — avoids CustomTkinter borderless card click bugs on Windows."""
+        for _ in range(20):
+            if health_ok():
+                break
+            time.sleep(0.25)
+        url = resolve_login_url(self.install_root)
+        if not open_browser_url(url):
+            self._notify("CTrack Engine", f"Open this URL to sign in:\n{url}")
 
     def _open_web(self) -> None:
         webbrowser.open(self.web_url)
@@ -381,15 +388,15 @@ class SingleInstanceLock(InstanceLock):
 
 
 def _spawn_login(install_root: Path) -> None:
-    engine_dir = get_engine_dir(install_root)
-    pyw = get_python_dir(install_root) / "pythonw.exe"
-    exe = str(pyw) if pyw.is_file() else sys.executable
-    flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
-    subprocess.Popen(
-        [exe, "-m", "gui.login_prompt", "--install-root", str(install_root)],
-        cwd=str(engine_dir / "python"),
-        creationflags=flags,
-    )
+    """Open browser pairing instead of the legacy CustomTkinter sign-in card."""
+    clear_stale_lock("login.lock")
+    for _ in range(20):
+        if health_ok():
+            break
+        time.sleep(0.25)
+    url = resolve_login_url(install_root)
+    if not open_browser_url(url):
+        print(f"Open this URL to sign in: {url}", file=sys.stderr)
 
 
 def _show_already_running_notice() -> None:

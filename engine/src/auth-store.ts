@@ -1,6 +1,11 @@
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
+import {
+  migratePlainCredentialsToDpapi,
+  protectCredentialsJson,
+  readProtectedCredentialsSync,
+} from "./credentials-dpapi.js"
 
 export interface EngineCredentials {
   version: number
@@ -85,10 +90,11 @@ export function getAuthStorePath(): string {
 
 function readCredentials(): EngineCredentials | null {
   const filePath = getCredentialsPath()
-  if (!fs.existsSync(filePath)) {
+  const raw = readProtectedCredentialsSync(filePath)
+  if (!raw) {
     return null
   }
-  const parsed = JSON.parse(fs.readFileSync(filePath, "utf8")) as Partial<EngineCredentials> & {
+  const parsed = JSON.parse(raw) as Partial<EngineCredentials> & {
     deviceToken?: unknown
     refreshToken?: unknown
     deviceRefreshToken?: unknown
@@ -180,13 +186,14 @@ function patchCredentialEmail(email: string): AuthStatus {
     email,
     lastRefreshAt: new Date().toISOString(),
   }
-  fs.writeFileSync(getCredentialsPath(), `${JSON.stringify(updated, null, 2)}\n`, "utf8")
+  void protectCredentialsJson(getCredentialsPath(), `${JSON.stringify(updated, null, 2)}\n`)
   return buildStatus(updated)
 }
 
 function writeCredentials(credentials: EngineCredentials): void {
   const wasPaired = readCredentials() !== null
-  fs.writeFileSync(getCredentialsPath(), `${JSON.stringify(credentials, null, 2)}\n`, "utf8")
+  const json = `${JSON.stringify(credentials, null, 2)}\n`
+  void protectCredentialsJson(getCredentialsPath(), json)
   if (!wasPaired) {
     signalPairingComplete()
   }

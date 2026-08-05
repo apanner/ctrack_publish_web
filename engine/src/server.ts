@@ -26,6 +26,9 @@ import { engineBus } from "./event-bus.js"
 import { fetchEngineStatus } from "./runtime-status.js"
 import { getSettingsBundle, patchSettingsBundle } from "./settings-bundle.js"
 import { enqueuePublishJob, headlessProcessJob, headlessProcessNextIdleJob, validateEnqueueBody } from "./publish-api.js"
+import { addJobAndEmit, deleteJobAndEmit, updateJobAndEmit } from "./queue-events.js"
+import { dispatchJobAsync } from "./publish-worker.js"
+import { ensureMediaRuntime } from "./runtime-ensure.js"
 import {
   getUserTemplatesRoot,
   getTemplateAbsolutePathById,
@@ -36,9 +39,10 @@ import {
   syncTemplatesDirectories,
   upsertTemplateMetadata,
 } from "./template-registry.js"
-import { getAuthSnapshot, getAuthStatus, getAuthStorePath, pairDevice, refreshDeviceToken, syncAccountEmail, unpairDevice } from "./auth-store.js"
+import { getAuthSnapshot, getAuthStatus, getAuthStorePath, getCredentialsPath, pairDevice, refreshDeviceToken, syncAccountEmail, unpairDevice } from "./auth-store.js"
 import { getLocalAuthLinkUrl, pairFromAccessToken, renderAuthLinkPage, resolveSupabaseJsPath } from "./auth-link-page.js"
 import { applyDownloadedUpdate, checkForUpdate, downloadUpdate, getPendingUpdate, type UpdateProduct } from "./update-service.js"
+import { migratePlainCredentialsToDpapi } from "./credentials-dpapi.js"
 import { ENGINE_VERSION } from "./generated/engine-version.js"
 
 const execAsync = promisify(exec)
@@ -215,6 +219,13 @@ const publishApiDeps = {
   },
 }
 
+const publishWorkerDeps = {
+  queueManager,
+  pythonManager,
+  s3Manager,
+  onQueueEvent: publishApiDeps.onQueueEvent,
+}
+
 function parseCorsOrigins(): string[] {
   const raw = process.env.CTRACK_WEB_ORIGINS
   if (raw) {
@@ -272,6 +283,8 @@ app.get("/api", (_req, res) => {
       { method: "GET", path: "/api/publish/jobs/:id" },
       { method: "POST", path: "/api/publish/jobs/:id/process", localhostOnly: true },
       { method: "POST", path: "/api/publish/process-next", localhostOnly: true },
+      { method: "POST", path: "/api/publish/dispatch", localhostOnly: true },
+      { method: "POST", path: "/api/runtime/ensure", localhostOnly: true },
       { method: "GET", path: "/api/stream" },
       { method: "POST", path: "/api/ipc" },
     ],
@@ -703,11 +716,9 @@ app.post("/api/gui/open", localhostSetupOnly, (req, res) => {
     const installRoot = getInstallRoot()
     if (panel === "logs") {
       const pythonExe = resolveGuiPythonExe(installRoot)
-      const paired = getAuthStatus().paired
-      const moduleName = paired ? "gui.engine_window" : "gui.login_prompt"
       const child = spawn(
         pythonExe,
-        ["-m", moduleName, "--install-root", installRoot],
+        ["-m", "gui.engine_window", "--install-root", installRoot],
         {
           cwd: path.join(getEngineRoot(), "python"),
           windowsHide: true,
@@ -716,7 +727,7 @@ app.post("/api/gui/open", localhostSetupOnly, (req, res) => {
         }
       )
       child.unref()
-      res.json({ ok: true, panel, paired, launcher: `pythonw -m ${moduleName}` })
+      res.json({ ok: true, panel, launcher: "pythonw -m gui.engine_window" })
       return
     }
     if (panel === "settings") {
@@ -889,8 +900,8 @@ app.post("/api/publish/enqueue", localhostSetupOnly, async (req, res) => {
       res.status(201).json({ ok: true, job })
       return
     }
-    const processed = await headlessProcessJob(job.id, publishApiDeps)
-    res.status(201).json({ ok: true, job: processed.job, output_path: processed.output_path, processed: true })
+    dispatchJobAsync(job.id, publishWorkerDeps)
+    res.status(201).json({ ok: true, job, dispatched: true })
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e)
     const statusCode = /invalid|required/i.test(message) ? 400 : 500
@@ -933,12 +944,43 @@ app.post("/api/publish/jobs/:id/process", localhostSetupOnly, async (req, res) =
       res.status(400).json({ ok: false, error: "Job id is required" })
       return
     }
-    const processed = await headlessProcessJob(id, publishApiDeps)
-    res.json({ ok: true, job: processed.job, output_path: processed.output_path })
+    dispatchJobAsync(id, publishWorkerDeps)
+    const job = queueManager.getJob(id)
+    res.json({ ok: true, job, dispatched: true })
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e)
     const statusCode = /not found/i.test(message) ? 404 : 500
     res.status(statusCode).json({ ok: false, error: message })
+  }
+})
+
+app.post("/api/publish/dispatch", localhostSetupOnly, async (req, res) => {
+  try {
+    const id = String((req.body as { jobId?: string })?.jobId ?? "")
+    if (!id) {
+      res.status(400).json({ ok: false, error: "jobId is required" })
+      return
+    }
+    const job = queueManager.getJob(id)
+    if (!job) {
+      res.status(404).json({ ok: false, error: "Job not found" })
+      return
+    }
+    dispatchJobAsync(id, publishWorkerDeps)
+    res.json({ ok: true, job, dispatched: true })
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e)
+    res.status(500).json({ ok: false, error: message })
+  }
+})
+
+app.post("/api/runtime/ensure", localhostSetupOnly, async (_req, res) => {
+  try {
+    const result = await ensureMediaRuntime(getInstallRoot())
+    res.json({ ok: true, ...result })
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e)
+    res.status(500).json({ ok: false, error: message })
   }
 })
 
@@ -969,10 +1011,16 @@ app.get("/api/stream", (req, res) => {
   const onPy = (msg: string) => send("python-log", msg)
   const onUp = (d: unknown) => send("upload-progress", d)
   const onQueue = (d: unknown) => send("queue-log", d)
+  const onJobAdded = (d: unknown) => send("queue:job-added", d)
+  const onJobUpdated = (d: unknown) => send("queue:job-updated", d)
+  const onJobRemoved = (d: unknown) => send("queue:job-removed", d)
 
   engineBus.on("python-log", onPy)
   engineBus.on("upload-progress", onUp)
   engineBus.on("queue:log-appended", onQueue)
+  engineBus.on("queue:job-added", onJobAdded)
+  engineBus.on("queue:job-updated", onJobUpdated)
+  engineBus.on("queue:job-removed", onJobRemoved)
 
   send("connected", {})
   const ping = setInterval(() => send("ping", {}), 25000)
@@ -982,6 +1030,9 @@ app.get("/api/stream", (req, res) => {
     engineBus.off("python-log", onPy)
     engineBus.off("upload-progress", onUp)
     engineBus.off("queue:log-appended", onQueue)
+    engineBus.off("queue:job-added", onJobAdded)
+    engineBus.off("queue:job-updated", onJobUpdated)
+    engineBus.off("queue:job-removed", onJobRemoved)
   })
 })
 
@@ -1215,17 +1266,24 @@ async function dispatchIpc(channel: string, payload: unknown): Promise<unknown> 
     case "queue:get-jobs":
       return queueManager.getJobs()
     case "queue:add-job": {
-      queueManager.addJob(payload as DBJob)
+      addJobAndEmit(queueManager, payload as DBJob)
       return true
     }
     case "queue:update-job": {
       const body = payload as { id: string; updates: Partial<DBJob> }
-      queueManager.updateJob(body.id, body.updates)
+      updateJobAndEmit(queueManager, body.id, body.updates)
       return true
     }
     case "queue:remove-job":
-      queueManager.deleteJob(String(payload))
+      deleteJobAndEmit(queueManager, String(payload))
       return true
+    case "queue:dispatch-job": {
+      const body = payload as { jobId?: string }
+      const jobId = String(body?.jobId ?? "")
+      if (!jobId) throw new Error("jobId is required")
+      dispatchJobAsync(jobId, publishWorkerDeps)
+      return { ok: true, dispatched: true }
+    }
     case "queue:clear":
       queueManager.clearCompleted()
       return true
@@ -1339,6 +1397,9 @@ function isRunAsNodeMainScript(): boolean {
 export function startEngine(): Promise<http.Server> {
   pythonManager.start()
   seedDefaultReviewTemplateIfEmpty()
+  void migratePlainCredentialsToDpapi(getCredentialsPath()).catch((e) => {
+    console.warn("[ctrack-engine] credentials DPAPI migration skipped:", e)
+  })
   return new Promise((resolve, reject) => {
     try {
       httpServer = app.listen(PORT, HOST, () => {

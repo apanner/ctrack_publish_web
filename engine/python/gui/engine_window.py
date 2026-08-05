@@ -10,7 +10,8 @@ from typing import Any, Dict, List, Optional
 import customtkinter as ctk
 
 from gui import theme as T
-from gui.tray_anim import launch_settings
+from gui.env_config import resolve_login_url
+from gui.tray_anim import launch_settings, open_browser_url
 from gui.api import EngineApiError, get_auth_status, get_logs_tail, get_publish_jobs, get_status, health_ok
 from gui.auth_local import is_locally_paired
 from gui.icons import apply_window_icon
@@ -62,7 +63,7 @@ class EngineWindow(ctk.CTk):
         self.auth_banner.grid_columnconfigure(0, weight=1)
         ctk.CTkLabel(
             self.auth_banner,
-            text="Sign in from the tray popup to link this workstation.",
+            text="Sign in from the tray menu or click Sign in to open the browser pairing page.",
             font=T.FONT_SM,
             text_color="#F5D0A9",
         ).grid(row=0, column=0, padx=12, pady=10, sticky="w")
@@ -92,13 +93,9 @@ class EngineWindow(ctk.CTk):
         launch_settings(self.install_root, page="General", from_tray=True, pythonw_exe=self._pythonw_exe())
 
     def _open_login(self) -> None:
-        import subprocess
-
-        subprocess.Popen(
-            [self._pythonw_exe(), "-m", "gui.login_prompt", "--install-root", str(self.install_root)],
-            cwd=str(self.engine_dir / "python"),
-            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
-        )
+        url = resolve_login_url(self.install_root)
+        if not open_browser_url(url):
+            self.lbl_status.configure(text=f"Open in browser: {url}")
 
     def _refresh_once(self) -> None:
         self._refresh(force_continue=False)

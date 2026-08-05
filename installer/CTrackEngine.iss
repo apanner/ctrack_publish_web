@@ -49,9 +49,9 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 [Messages]
 ; Professional VFX pipeline tone — matches CTrack web shell (dark / teal accents)
 english.WelcomeLabel1=Welcome to the [name] Setup Wizard.%n%nThis installs the local publish engine for CTrack: transcoding, staging, job queue, object storage upload, and pipeline hooks aligned with review and delivery workflows common in VFX and episodic production.
-english.WelcomeLabel2=Click Next to continue.%n%nThe installer includes Node, portable Python, FFmpeg, OpenImageIO, and OCIO configs used by the engine under one install. Facility configuration is handled by the hosted web setup flow after the engine starts.
+english.WelcomeLabel2=Click Next to continue.%n%nThe core installer includes Node and portable Python. FFmpeg, OpenImageIO, and OCIO download on first transcode, or select the optional full media pack for offline sites.
 
-english.FinishedLabel=Setup has installed [name] on this workstation.%n%nFrom the Start menu, run Start CTrack Engine to launch the system tray host (engine API on 127.0.0.1:7777). Then open the hosted CTrack Publish web app and complete first-run setup from the browser.
+english.FinishedLabel=Setup has installed [name] on this workstation.%n%nFrom the Start menu, run Start CTrack Engine to launch the system tray host (engine API on 127.0.0.1:7777). Sign in opens your browser to pair this workstation. Then open the hosted CTrack Publish web app.
 
 [Files]
 Source: "..\release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -59,13 +59,16 @@ Source: "..\release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs cr
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut for CTrack Publish Engine"; GroupDescription: "Additional shortcuts:"; Flags: unchecked
 Name: "firewall"; Description: "Add a Windows Firewall rule for the engine API on localhost port 7777"; GroupDescription: "Network:"; Flags: unchecked
+Name: "fullmedia"; Description: "Include FFmpeg, OpenImageIO, and OCIO in this install (offline / air-gapped sites)"; GroupDescription: "Media runtime:"; Flags: unchecked
 
 [Run]
 Filename: "{cmd}"; Parameters: "/C netsh advfirewall firewall add rule name=""CTrack Engine API (loopback 7777)"" dir=in action=allow protocol=TCP localip=127.0.0.1 localport=7777 profile=private,domain"; Flags: runhidden; Tasks: firewall
+Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\scripts\download-media-pack.ps1"" -TargetRoot ""{app}\engine"""; Flags: runhidden; Tasks: fullmedia
 Filename: "{app}\{#MyAppExeName}"; Description: "Start CTrack Engine in the system tray"; Flags: postinstall nowait skipifsilent
 
 [Icons]
 Name: "{group}\Start CTrack Engine"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; IconFilename: "{app}\engine\assets\ctrack-tray.ico"
+Name: "{group}\Start CTrack Engine (native)"; Filename: "{app}\ctrack-engine.exe"; WorkingDir: "{app}"; IconFilename: "{app}\engine\assets\ctrack-tray.ico"; Check: FileExists(ExpandConstant('{app}\ctrack-engine.exe'))
 Name: "{group}\Start Engine (console)"; Filename: "{app}\start-engine.bat"; WorkingDir: "{app}"; IconFilename: "{app}\engine\assets\ctrack-tray.ico"
 Name: "{group}\Engine Settings"; Filename: "{app}\open-tray-settings.vbs"; WorkingDir: "{app}"; IconFilename: "{app}\engine\assets\ctrack-tray.ico"
 Name: "{group}\Open Hosted Web UI"; Filename: "https://ctrackpublishweb.vercel.app/"; IconFilename: "{app}\engine\assets\ctrack-tray.ico"

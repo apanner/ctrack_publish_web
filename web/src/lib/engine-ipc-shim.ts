@@ -36,6 +36,21 @@ function ensureEngineStream(): void {
       const row = JSON.parse((ev as MessageEvent).data as string) as unknown
       bus.dispatchEvent(new CustomEvent("queue:log-appended", { detail: { args: [row] as unknown[] } }))
     })
+    es.addEventListener("queue:job-added", (ev) => {
+      const row = JSON.parse((ev as MessageEvent).data as string) as unknown
+      bus.dispatchEvent(new CustomEvent("queue:job-added", { detail: { args: [row] as unknown[] } }))
+    })
+    es.addEventListener("queue:job-updated", (ev) => {
+      const row = JSON.parse((ev as MessageEvent).data as string) as unknown
+      bus.dispatchEvent(new CustomEvent("queue:job-updated", { detail: { args: [row] as unknown[] } }))
+    })
+    es.addEventListener("queue:job-removed", (ev) => {
+      const row = JSON.parse((ev as MessageEvent).data as string) as unknown
+      bus.dispatchEvent(new CustomEvent("queue:job-removed", { detail: { args: [row] as unknown[] } }))
+    })
+    es.addEventListener("connected", () => {
+      bus.dispatchEvent(new CustomEvent("engine:stream-connected", { detail: { args: [] as unknown[] } }))
+    })
     es.onerror = () => {
       es.close()
       stream = null

@@ -26,7 +26,11 @@ if ($null -eq $gh) {
 }
 
 $workflowFile = "ctrack-deploy.yml"
-$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+$gitRoot = (git -C $PSScriptRoot rev-parse --show-toplevel 2>$null)
+if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($gitRoot)) {
+  $gitRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+}
+$repoRoot = $gitRoot
 
 Push-Location $repoRoot
 try {

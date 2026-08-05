@@ -7,12 +7,17 @@ for %%A in (%*) do (
 )
 
 echo [ctrack] Building release folder...
-call scripts\build-release.bat /nopause
+call scripts\build-release.bat /nopause /installer
 if errorlevel 1 exit /b 1
 
 echo [ctrack] Embedding portable Node.js...
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0embed-node.ps1"
 if errorlevel 1 exit /b 1
+
+if exist "%ProgramFiles%\Go\bin\go.exe" (
+  echo [ctrack] Building Go tray binary ^(ctrack-engine.exe^)...
+  call "%~dp0build-go-engine.bat"
+)
 
 set "ISCC="
 if exist "%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe" set "ISCC=%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe"
