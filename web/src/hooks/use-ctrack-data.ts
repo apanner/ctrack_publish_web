@@ -9,6 +9,7 @@ export interface DBProject {
     code: string
     status: string
     project_type: 'Film' | 'TV Episode'
+    studio_id?: string
 }
 
 export interface DBEpisode {
@@ -44,24 +45,27 @@ export interface DBTask {
 // DB column is task_name; we map to name for UI
 
 const queryKeys = {
-    projects: ["projects"] as const,
+    projects: (studioId: string) => ["projects", studioId] as const,
     shots: (projectId: string) => ["shots", projectId] as const,
     tasks: (shotId: string) => ["tasks", shotId] as const,
 }
 
-// Fetch Projects
-export function useProjects() {
+// Fetch Projects for the active studio
+export function useProjects(studioId?: string | null) {
     return useQuery({
-        queryKey: queryKeys.projects,
+        queryKey: queryKeys.projects(studioId || ""),
         queryFn: async () => {
+            if (!studioId) return []
             const { data, error } = await supabase
                 .from("projects")
-                .select("id, name, code, status, project_type")
+                .select("id, name, code, status, project_type, studio_id")
+                .eq("studio_id", studioId)
                 .order("name")
 
             if (error) throw error
             return data as DBProject[]
         },
+        enabled: !!studioId,
         staleTime: 1000 * 60 * 5, // 5 minutes
     })
 }
@@ -271,18 +275,33 @@ export interface ShotByCodeResult {
 }
 
 /**
- * Finds a shot by shot_code across all projects. Used when Smart-Fill parses
- * a path and wants to pre-fill Project + Shot. Returns first match if multiple.
+ * Finds a shot by shot_code within the active studio's projects.
+ * Used when Smart-Fill parses a path and wants to pre-fill Project + Shot.
  */
-export async function findShotByCode(shotCode: string): Promise<ShotByCodeResult | null> {
-    if (!shotCode.trim()) return null
+export async function findShotByCode(
+    shotCode: string,
+    studioId?: string | null
+): Promise<ShotByCodeResult | null> {
+    if (!shotCode.trim() || !studioId) return null
     const normalized = shotCode.trim().toUpperCase()
+
+    const { data: studioProjects, error: projectsError } = await supabase
+        .from("projects")
+        .select("id, code")
+        .eq("studio_id", studioId)
+    if (projectsError || !studioProjects?.length) return null
+
+    const projectIds = studioProjects.map((p) => p.id)
+    const projectCodeById = new Map(studioProjects.map((p) => [p.id, p.code ?? null]))
+
     const { data, error } = await supabase
         .from("shots")
         .select("id, project_id, shot_code, sequence_name, episode_id, episodes(code)")
         .ilike("shot_code", normalized)
+        .in("project_id", projectIds)
         .limit(1)
     if (error || !data?.length) return null
+
     const row = data[0] as {
         id: string
         project_id: string
@@ -292,21 +311,17 @@ export async function findShotByCode(shotCode: string): Promise<ShotByCodeResult
         episodes?: { code?: string | null } | { code?: string | null }[]
     }
     const episodeResult = row.episodes
-    const joinedEpisodeCode = Array.isArray(episodeResult) ? episodeResult[0]?.code ?? null : episodeResult?.code ?? null
-    const { data: projectData } = await supabase
-        .from("projects")
-        .select("code")
-        .eq("id", row.project_id)
-        .single()
-    const projectCode = projectData?.code ?? null
+    const joinedEpisodeCode = Array.isArray(episodeResult)
+        ? episodeResult[0]?.code ?? null
+        : episodeResult?.code ?? null
 
     return {
         projectId: row.project_id,
-        projectCode,
+        projectCode: projectCodeById.get(row.project_id) ?? null,
         shotId: row.id,
         shotCode: row.shot_code,
         sequenceName: row.sequence_name ?? null,
         episodeId: row.episode_id ?? null,
-        episodeCode: joinedEpisodeCode
+        episodeCode: joinedEpisodeCode,
     }
 }

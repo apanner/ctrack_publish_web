@@ -45,6 +45,7 @@ export interface WizardShotData {
 }
 
 export interface WizardData {
+  studio_id: string
   project: WizardProjectData
   episodes: WizardEpisodeData[]
   sequences: WizardSequenceData[]
@@ -65,23 +66,28 @@ export interface CreateProjectResult {
 }
 
 /**
- * Loads task options from studio_dictionaries + studio_dictionary_items.
+ * Loads task options from studio_dictionaries + studio_dictionary_items (per studio).
  */
-export async function loadTaskOptions(): Promise<Array<{ code: string; label: string }>> {
+export async function loadTaskOptions(
+  studioId: string
+): Promise<Array<{ code: string; label: string }>> {
+  if (!studioId) return []
+
   const { data: dict, error: dictError } = await supabase
-    .from('studio_dictionaries')
-    .select('id')
-    .eq('key', 'tasks')
+    .from("studio_dictionaries")
+    .select("id")
+    .eq("studio_id", studioId)
+    .eq("key", "tasks")
     .maybeSingle()
 
   if (dictError || !dict) return []
 
   const { data: items, error: itemsError } = await supabase
-    .from('studio_dictionary_items')
-    .select('code, label')
-    .eq('dictionary_id', dict.id)
-    .order('sort_order', { ascending: true, nullsFirst: false })
-    .order('label', { ascending: true })
+    .from("studio_dictionary_items")
+    .select("code, label")
+    .eq("dictionary_id", dict.id)
+    .order("sort_order", { ascending: true, nullsFirst: false })
+    .order("label", { ascending: true })
 
   if (itemsError || !items) return []
   return items.map((i: { code: string; label: string }) => ({ code: i.code, label: i.label }))
@@ -93,12 +99,16 @@ export async function loadTaskOptions(): Promise<Array<{ code: string; label: st
  * Returns projectId and created shots for bulk ingest mapping.
  */
 export async function createProjectFromWizard(data: WizardData): Promise<CreateProjectResult> {
+  const studioId = data.studio_id?.trim()
+  if (!studioId) throw new Error("studio_id is required to create a project")
+
   const projectCode = data.project.code.trim().toUpperCase()
 
-  // 1. Create project
+  // 1. Create project (studio-scoped uniqueness: studio_id + code)
   const { data: projectData, error: projectError } = await supabase
-    .from('projects')
+    .from("projects")
     .insert({
+      studio_id: studioId,
       name: data.project.name,
       code: projectCode,
       description: data.project.description?.trim() || null,
@@ -106,13 +116,13 @@ export async function createProjectFromWizard(data: WizardData): Promise<CreateP
       delivery_date: data.project.delivery_date?.trim() || null,
       client_name: data.project.client_name || null,
       status: data.project.status,
-      project_type: data.project.project_type || 'Film',
+      project_type: data.project.project_type || "Film",
       thumbnail_url: data.project.thumbnail_url ?? null,
     })
-    .select('id, folder_id')
+    .select("id, folder_id")
     .single()
 
-  if (projectError) throwDb(projectError, 'Could not create project')
+  if (projectError) throwDb(projectError, "Could not create project")
   const projectId = projectData.id
 
   // 2. Create episodes (TV only)
@@ -232,18 +242,19 @@ export async function createProjectFromWizard(data: WizardData): Promise<CreateP
   // 5. Create shot_tasks
   if (shotsResult.length > 0) {
     const { data: dictData, error: dictError } = await supabase
-      .from('studio_dictionaries')
-      .select('id')
-      .eq('key', 'tasks')
+      .from("studio_dictionaries")
+      .select("id")
+      .eq("studio_id", studioId)
+      .eq("key", "tasks")
       .maybeSingle()
 
     if (!dictError && dictData) {
       const { data: taskItems, error: itemsError } = await supabase
-        .from('studio_dictionary_items')
-        .select('code, label')
-        .eq('dictionary_id', dictData.id)
-        .order('sort_order', { ascending: true, nullsFirst: false })
-        .order('label', { ascending: true })
+        .from("studio_dictionary_items")
+        .select("code, label")
+        .eq("dictionary_id", dictData.id)
+        .order("sort_order", { ascending: true, nullsFirst: false })
+        .order("label", { ascending: true })
 
       if (!itemsError && taskItems && taskItems.length > 0) {
         const shotIdByCode = new Map<string, string>()

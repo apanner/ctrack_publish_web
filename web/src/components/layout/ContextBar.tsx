@@ -12,9 +12,9 @@ import { Monitor, Tv, Clapperboard } from 'lucide-react'
 import { useContextStore } from '@/hooks/use-context-store'
 import { cn } from "@/lib/utils"
 
-export function ContextBar({ onNavigateToQueue }: { onNavigateToQueue?: () => void } = {}) {
-    const { projectId, setProjectId, episodeId, setEpisodeId, shotId, setShotId } = useContextStore()
-    const { data: projects, isLoading: projectsLoading } = useProjects()
+export function ContextBar({ onNavigateToQueue: _onNavigateToQueue }: { onNavigateToQueue?: () => void } = {}) {
+    const { studioId, studio, projectId, setProjectId, episodeId, setEpisodeId, shotId, setShotId } = useContextStore()
+    const { data: projects, isLoading: projectsLoading } = useProjects(studioId)
     const { data: episodes, isLoading: episodesLoading } = useEpisodes(projectId || undefined)
     const { data: shots, isLoading: shotsLoading } = useShots(projectId || undefined, episodeId || undefined)
     const selectedProjectObj = projects?.find(p => p.id === projectId)
@@ -28,6 +28,11 @@ export function ContextBar({ onNavigateToQueue }: { onNavigateToQueue?: () => vo
                 <div className="flex min-w-0 flex-col gap-1.5">
                     <span className="ctrack-label flex items-center gap-1.5">
                         <Monitor className="w-3 h-3 text-[#24E1B1]" /> Project
+                        {studio?.display_name || studio?.name ? (
+                          <span className="ml-1 font-normal normal-case tracking-normal text-gray-500">
+                            · {studio.display_name || studio.name}
+                          </span>
+                        ) : null}
                     </span>
                     <div className="flex items-center gap-2">
                         <Select

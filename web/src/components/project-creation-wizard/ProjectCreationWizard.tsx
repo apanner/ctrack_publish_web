@@ -140,7 +140,7 @@ export function ProjectCreationWizard({
   onSuccess,
   onNavigateToQueue,
 }: ProjectCreationWizardProps) {
-  const { profile, user } = useAuth()
+  const { profile, user, studioId } = useAuth()
   const { setProjectId } = useContextStore()
   const { addJob, processNextJob } = usePublishQueue()
   const queryClient = useQueryClient()
@@ -194,10 +194,10 @@ export function ProjectCreationWizard({
   const canUseWizard = canOpenProjectCreationWizard(profile?.role)
 
   useEffect(() => {
-    if (open && canUseWizard) {
-      loadTaskOptions().then((opts) => setTaskOptions(opts))
+    if (open && canUseWizard && studioId) {
+      void loadTaskOptions(studioId).then((opts) => setTaskOptions(opts))
     }
-  }, [open, canUseWizard])
+  }, [open, canUseWizard, studioId])
 
   useEffect(() => {
     if (!open) {
@@ -523,7 +523,12 @@ export function ProjectCreationWizard({
     }
 
     try {
+      if (!studioId) {
+        throw new Error("No active studio — sign in again after studio membership is assigned")
+      }
+
       const wizardData: WizardData = {
+        studio_id: studioId,
         project: {
           project_type: projectType,
           name: projectInfo.name.trim(),
@@ -557,7 +562,7 @@ export function ProjectCreationWizard({
       setCreationProgress({ current: enabledShots.length, total: enabledShots.length, shotCode: "Complete!" })
 
       setProjectId(result.projectId, result.projectCode)
-      queryClient.invalidateQueries({ queryKey: ["projects"] })
+      queryClient.invalidateQueries({ queryKey: ["projects", studioId] })
       queryClient.invalidateQueries({ queryKey: ["shots", result.projectId] })
       queryClient.invalidateQueries({ queryKey: ["episodes", result.projectId] })
 
@@ -578,6 +583,7 @@ export function ProjectCreationWizard({
     sequences,
     allShots,
     user?.id,
+    studioId,
     setProjectId,
     queryClient,
   ])

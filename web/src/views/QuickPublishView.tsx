@@ -71,7 +71,7 @@ export function QuickPublishView({ onNavigateToQueue }: QuickPublishViewProps) {
     const [shotMismatchWarning, setShotMismatchWarning] = useState<{ fileShotCode: string } | null>(null)
 
     const { addJob, processNextJob } = usePublishQueue()
-    const { projectId, projectCode, episodeCode, sequenceName, shotId, shotCode, setProjectId, setShotId, taskId, setTaskId, elementCategory, setElementCategory, elementType, setElementType } = useContextStore()
+    const { studioId, projectId, projectCode, episodeCode, sequenceName, shotId, shotCode, setProjectId, setShotId, taskId, setTaskId, elementCategory, setElementCategory, elementType, setElementType } = useContextStore()
     const { data: tasks, isLoading: tasksLoading } = useTasks(shotId || undefined)
     const { data: recipients, isLoading: recipientsLoading } = useNotificationRecipients()
     const { data: nextVersionNum } = useNextVersionNumber(shotId || undefined)
@@ -105,7 +105,7 @@ export function QuickPublishView({ onNavigateToQueue }: QuickPublishViewProps) {
                 firstPath ? (firstPath.toLowerCase().startsWith("virtual:/") ? items[0]?.fileName ?? firstPath : firstPath) : items[0]?.fileName ?? ""
             )
             if (parsedShotCode) {
-                findShotByCode(parsedShotCode).then((match) => {
+                findShotByCode(parsedShotCode, studioId).then((match) => {
                     if (match) {
                         setProjectId(match.projectId, match.projectCode)
                         setShotId(match.shotId, match.shotCode, match.sequenceName, match.episodeCode, match.episodeId)
@@ -135,7 +135,7 @@ export function QuickPublishView({ onNavigateToQueue }: QuickPublishViewProps) {
         }
         ; (window as any).ipcRenderer?.invoke("staging:write", { items: stripBrowserBundlesForPersist(next), formData })
         setStaging(next)
-    }, [projectId, shotId, taskId, activeTab, elementNotes, elementCategory, elementType, deliveryType, submissionNotes, versionOverride, versionName, versionDisplay, setProjectId, setShotId, addLog])
+    }, [studioId, projectId, shotId, taskId, activeTab, elementNotes, elementCategory, elementType, deliveryType, submissionNotes, versionOverride, versionName, versionDisplay, setProjectId, setShotId, addLog])
 
     const handleStagingClear = useCallback(() => {
         setStaging([])
@@ -338,7 +338,7 @@ export function QuickPublishView({ onNavigateToQueue }: QuickPublishViewProps) {
 
     const handleShotMismatchSelectRight = useCallback(async () => {
         if (!shotMismatchWarning) return
-        const match = await findShotByCode(shotMismatchWarning.fileShotCode)
+        const match = await findShotByCode(shotMismatchWarning.fileShotCode, studioId)
         if (match) {
             setProjectId(match.projectId, match.projectCode)
             setShotId(match.shotId, match.shotCode, match.sequenceName, match.episodeCode, match.episodeId)
@@ -351,7 +351,7 @@ export function QuickPublishView({ onNavigateToQueue }: QuickPublishViewProps) {
         } else {
             addLog("warn", `Shot "${shotMismatchWarning.fileShotCode}" not found in database. Select manually or Override.`)
         }
-    }, [shotMismatchWarning, setProjectId, setShotId, addLog, doPublish])
+    }, [shotMismatchWarning, studioId, setProjectId, setShotId, addLog, doPublish])
 
     const handleShotMismatchOverride = useCallback(() => {
         void doPublish(projectId, shotId, shotCode)
