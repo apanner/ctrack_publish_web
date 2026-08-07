@@ -91,8 +91,8 @@ CTRACK_WEB_ORIGINS=https://ctrackpublishweb.vercel.app,http://localhost:5173,htt
 
 | What | How |
 |------|-----|
-| **Web UI** | Push to `main` → [CTrack Deploy Web](.github/workflows/ctrack-deploy-web.yml) → Vercel |
-| **Engine installer** | Tag `v*` → [CTrack Deploy](.github/workflows/ctrack-deploy.yml) → GitHub Releases |
+| **Web UI** | Push to `main` → **Vercel** (Git integration, not GH Actions) |
+| **Engine installer** | Tag `v*` → [CTrack Deploy](.github/workflows/ctrack-deploy.yml) → **Windows** runner → GitHub Releases |
 
 Full guide: [`docs/RELEASE.md`](docs/RELEASE.md)
 
@@ -102,9 +102,9 @@ Clean local artifacts before commit:
 npm run clean:all
 ```
 
-### Vercel (one-time)
+### Vercel (web)
 
-[`vercel.json`](vercel.json) builds **only** `web/`. Set GitHub secrets `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID` via `npm run deploy:secrets:github`.
+[`vercel.json`](vercel.json) builds **only** `web/`. Connect the GitHub repo in Vercel — deploys on push to `main`. Set `VITE_SUPABASE_*` in Vercel project env vars.
 
 Production URL: **https://ctrackpublishweb.vercel.app**
 

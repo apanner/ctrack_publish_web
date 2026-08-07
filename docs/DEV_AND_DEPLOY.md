@@ -120,9 +120,8 @@ npx supabase@latest functions deploy engine-pair-init --no-verify-jwt
 
 | Mode | Trigger | What runs |
 |------|---------|-----------|
-| **Dev** | Push/PR to `main` / `develop` | `npm ci` + build engine + web (`.github/workflows/ctrack-dev.yml`) |
-| **Web deploy** | Push to `main` (web paths) | Vercel production (`.github/workflows/ctrack-deploy-web.yml`) |
-| **Engine release** | Git tag `v*` or manual dispatch | Edge Functions → Windows installers → GitHub Release + `engine_releases` (`.github/workflows/ctrack-deploy.yml`) |
+| **Dev** | Push/PR to `main` / `develop` | `npm ci` + build engine + web on **windows-latest** |
+| **Engine release** | Git tag `v*` or manual dispatch | **windows-latest** → installers + GitHub Release + edge functions |
 
 ## Local scripts
 

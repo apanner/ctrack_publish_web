@@ -4,9 +4,9 @@
 
 | Artifact | Where it ships | Trigger |
 |----------|----------------|---------|
-| **Web UI** | [ctrackpublishweb.vercel.app](https://ctrackpublishweb.vercel.app) | Push to `main` (web changes) |
-| **Windows engine installer** | GitHub Releases | Git tag `v*` (e.g. `v0.1.11`) |
-| **Supabase Edge Functions** | Supabase project | Tag release workflow (or manual skip) |
+| **Web UI** | [ctrackpublishweb.vercel.app](https://ctrackpublishweb.vercel.app) | Push to `main` → **Vercel Git integration** (not GitHub Actions) |
+| **Windows engine installer** | GitHub Releases | Git tag `v*` on **`windows-latest`** only |
+| **Supabase Edge Functions** | Supabase project | Tag release workflow (`windows-latest`) |
 
 ---
 
@@ -21,16 +21,10 @@ cd d:\dev\track\ctrack_publish_web
 npm run deploy:secrets:github
 ```
 
-Required secrets:
+Required GitHub secrets (engine release only — **no Linux runners**):
 
 | Secret | Used by | How to get |
 |--------|---------|------------|
-| `VERCEL_TOKEN` | Web deploy | [Vercel → Account → Tokens](https://vercel.com/account/tokens) |
-| `VERCEL_ORG_ID` | Web deploy | `vercel link` → `.vercel/project.json` → `orgId` |
-| `VERCEL_PROJECT_ID` | Web deploy | `.vercel/project.json` → `projectId` |
-| `VITE_SUPABASE_URL` | Web build (CI) | Supabase project URL |
-| `VITE_SUPABASE_ANON_KEY` | Web build (CI) | Supabase anon key |
-| `VITE_AUTH_CALLBACK_URL` | Web build (optional) | `https://ctrackpublishweb.vercel.app/` |
 | `SUPABASE_ACCESS_TOKEN` | Engine release | Supabase account token (`sbp_...`) |
 | `SUPABASE_URL` | Engine release | Project URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | Engine release | service_role key |
@@ -38,11 +32,17 @@ Required secrets:
 
 > **Never commit** `.env`, `.env.deploy`, or `.vercel/`. They are gitignored.
 
-### 2. Vercel project
+### 2. Vercel project (web — no GitHub Actions)
 
-The repo root contains [`vercel.json`](../vercel.json). Vercel builds **only** `web/` (`npm ci --prefix web` + `vite build`).
+Connect the repo in [Vercel](https://vercel.com) → Import `apanner/ctrack_publish_web`. Vercel reads [`vercel.json`](../vercel.json) and builds `web/` on **Vercel’s builders** when you push to `main`.
 
-Disable Vercel’s automatic Git deploy if you want **GitHub Actions only** (recommended): Vercel → Project → Settings → Git → disconnect, or leave connected as backup.
+Set env vars in Vercel → Project → Settings → Environment Variables:
+
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
+- `VITE_AUTH_CALLBACK_URL` = `https://ctrackpublishweb.vercel.app/`
+
+**GitHub Actions are Windows-only** (engine installer). Do not add a Linux web-deploy workflow.
 
 ### 3. Supabase Auth redirect URLs
 
@@ -56,16 +56,11 @@ Add to Supabase → Authentication → URL Configuration:
 
 ## Day-to-day: ship web changes
 
-1. Work on a branch; use `npm run dev` locally (no production build needed).
-2. Merge / push to `main`.
-3. **CTrack Deploy Web (Vercel)** workflow runs automatically when `web/**` or `vercel.json` changes.
-4. Check Actions → workflow run → production URL.
+1. Use `npm run dev` locally.
+2. Push to `main`.
+3. **Vercel** auto-builds from the Git hook (check Vercel dashboard → Deployments).
 
-Manual re-deploy without a code change:
-
-```text
-GitHub → Actions → CTrack Deploy Web (Vercel) → Run workflow
-```
+No GitHub Action runs for web.
 
 ---
 
@@ -138,9 +133,10 @@ npm run clean:all    # remove dist/, release/, .vercel/ — safe before commit
 
 | Workflow file | Trigger | Runner | Output |
 |---------------|---------|--------|--------|
-| `ctrack-dev.yml` | PR / push `main` | `windows-latest` | Verify build (no deploy) |
-| `ctrack-deploy-web.yml` | push `main` (web paths) | `ubuntu-latest` | Vercel production |
-| `ctrack-deploy.yml` | tag `v*` / manual | `windows-latest` | GitHub Release installers |
+| `ctrack-dev.yml` | PR / push `main` | **windows-latest** | Verify build |
+| `ctrack-deploy.yml` | tag `v*` / manual | **windows-latest** | GitHub Release installers |
+
+Web deploy: **Vercel Git integration only** (not GitHub Actions).
 
 ---
 
