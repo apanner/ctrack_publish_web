@@ -22,6 +22,12 @@ $secretMap = [ordered]@{
   SUPABASE_ACCESS_TOKEN = $env:SUPABASE_ACCESS_TOKEN
   SUPABASE_URL = $env:SUPABASE_URL
   SUPABASE_SERVICE_ROLE_KEY = $env:SUPABASE_SERVICE_ROLE_KEY
+  VERCEL_TOKEN = $env:VERCEL_TOKEN
+  VERCEL_ORG_ID = $env:VERCEL_ORG_ID
+  VERCEL_PROJECT_ID = $env:VERCEL_PROJECT_ID
+  VITE_SUPABASE_URL = $env:VITE_SUPABASE_URL
+  VITE_SUPABASE_ANON_KEY = $env:VITE_SUPABASE_ANON_KEY
+  VITE_AUTH_CALLBACK_URL = $env:VITE_AUTH_CALLBACK_URL
 }
 
 $githubReleaseToken = $env:GITHUB_RELEASE_TOKEN
@@ -36,9 +42,10 @@ if (-not [string]::IsNullOrWhiteSpace($githubReleaseToken)) {
 }
 
 $missing = @()
-foreach ($entry in $secretMap.GetEnumerator()) {
-  if ([string]::IsNullOrWhiteSpace([string]$entry.Value)) {
-    $missing += $entry.Key
+$required = @("SUPABASE_ACCESS_TOKEN", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY")
+foreach ($key in $required) {
+  if ([string]::IsNullOrWhiteSpace([string]$secretMap[$key])) {
+    $missing += $key
   }
 }
 

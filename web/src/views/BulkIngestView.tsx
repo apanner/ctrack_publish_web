@@ -13,6 +13,7 @@ import { canOpenProjectCreationWizard } from "@/lib/publisher-permissions"
 import { useContextStore } from "@/hooks/use-context-store"
 import { useShots, type DBShot } from "@/hooks/use-ctrack-data"
 import { parsePathContext } from "@/lib/path-context"
+import { buildShotRootPath } from "@/lib/storage-paths"
 import { ContextBar } from "@/components/layout/ContextBar"
 import { useEngineHealthContext } from "@/context/engine-health-context"
 import {
@@ -152,12 +153,12 @@ function getProjectCode(shot: DBShot | undefined, fallbackProjectCode: string | 
   return fallbackProjectCode
 }
 
-function buildCanonicalShotRootPath(projectCode: string, sequenceName: string, shotCode: string, episodeCode?: string | null): string {
-  const episodePart = episodeCode ? `/${episodeCode}` : ""
-  return `Projects/${projectCode}${episodePart}/${sequenceName}/${shotCode}`
-}
-
-function withResolvedStorageContext(row: BulkMappingRow, shot: DBShot | undefined, fallbackProjectCode: string | null): BulkMappingRow {
+function withResolvedStorageContext(
+  row: BulkMappingRow,
+  shot: DBShot | undefined,
+  fallbackProjectCode: string | null,
+  studioSlug: string | null
+): BulkMappingRow {
   if (!shot) {
     return {
       ...row,
@@ -174,7 +175,7 @@ function withResolvedStorageContext(row: BulkMappingRow, shot: DBShot | undefine
   const episodeCode = getEpisodeCode(shot)
   const sequenceName = shot.sequence_name ?? null
   const shotCode = shot.shot_code ?? null
-  if (!projectCode || !sequenceName || !shotCode) {
+  if (!projectCode || !sequenceName || !shotCode || !studioSlug) {
     return {
       ...row,
       projectCode,
@@ -186,7 +187,7 @@ function withResolvedStorageContext(row: BulkMappingRow, shot: DBShot | undefine
       elementsBasePath: null,
     }
   }
-  const shotRootPath = buildCanonicalShotRootPath(projectCode, sequenceName, shotCode, episodeCode)
+  const shotRootPath = buildShotRootPath(studioSlug, projectCode, sequenceName, shotCode, episodeCode)
   return {
     ...row,
     projectCode,
@@ -267,7 +268,7 @@ export function BulkIngestView({ onNavigateToQueue }: BulkIngestViewProps) {
   const engineHealth = useEngineHealthContext()
   const engineReady = engineHealth.isOnline && !engineHealth.isChecking
   const { profile } = useAuth()
-  const { projectId, projectCode } = useContextStore()
+  const { projectId, projectCode, studio } = useContextStore()
   const canCreateProject = canOpenProjectCreationWizard(profile?.role)
   const { data: dbShots } = useShots(projectId || undefined)
 
@@ -497,7 +498,7 @@ export function BulkIngestView({ onNavigateToQueue }: BulkIngestViewProps) {
           statusReason: derived.reason,
           validationErrors: [],
         }
-        return withResolvedStorageContext(baseRow, matchedShot ?? undefined, projectCode ?? null)
+        return withResolvedStorageContext(baseRow, matchedShot ?? undefined, projectCode ?? null, studio?.slug ?? null)
       })
 
       setRows(mappedRows)
@@ -516,7 +517,7 @@ export function BulkIngestView({ onNavigateToQueue }: BulkIngestViewProps) {
         if (row.id !== rowId) return row
         const next = { ...row, ...updates }
         const resolvedShot = next.matchedShotId ? shotsById.get(next.matchedShotId) : undefined
-        const withContext = withResolvedStorageContext(next, resolvedShot, projectCode ?? null)
+        const withContext = withResolvedStorageContext(next, resolvedShot, projectCode ?? null, studio?.slug ?? null)
         const status = deriveRowStatus(next.inputPath, next.scanIssue, next.matchedShotId)
         return { ...withContext, status: status.status, statusReason: status.reason, validationErrors: [] }
       })

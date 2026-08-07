@@ -12,7 +12,7 @@ For the current high-level architecture and deployment summary, see [`APP_SUMMAR
 
 This is a **standalone repo** (not the `track` monorepo). Windows installers are built in GitHub Actions and published as [GitHub Releases](https://github.com/apanner/ctrack_publish_web/releases).
 
-Deploy docs: [`docs/DEV_AND_DEPLOY.md`](docs/DEV_AND_DEPLOY.md)
+Deploy docs: [`docs/RELEASE.md`](docs/RELEASE.md) (CI-only) · [`docs/DEV_AND_DEPLOY.md`](docs/DEV_AND_DEPLOY.md) (edge functions, secrets)
 
 ## Layout
 
@@ -85,24 +85,30 @@ Set `CTRACK_WEB_ORIGINS` (comma-separated) on the engine if the web app is not s
 CTRACK_WEB_ORIGINS=https://ctrackpublishweb.vercel.app,http://localhost:5173,http://127.0.0.1:5173
 ```
 
-## Production build
+## Production build & deploy (CI only)
 
-```bash
-npm run build
+**Do not run `npm run build` or `vercel deploy` locally for production.** Push to GitHub:
+
+| What | How |
+|------|-----|
+| **Web UI** | Push to `main` → [CTrack Deploy Web](.github/workflows/ctrack-deploy-web.yml) → Vercel |
+| **Engine installer** | Tag `v*` → [CTrack Deploy](.github/workflows/ctrack-deploy.yml) → GitHub Releases |
+
+Full guide: [`docs/RELEASE.md`](docs/RELEASE.md)
+
+Clean local artifacts before commit:
+
+```powershell
+npm run clean:all
 ```
 
-Engine output: `engine/dist/`, web static files in `web/dist/`.
+### Vercel (one-time)
 
-## Deploy web UI (Vercel)
+[`vercel.json`](vercel.json) builds **only** `web/`. Set GitHub secrets `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID` via `npm run deploy:secrets:github`.
 
-This repo includes [`vercel.json`](vercel.json): **`npm install` + `vite build` run inside `web/` only** (the engine package is not installed on Vercel), output `web/dist`.
+Production URL: **https://ctrackpublishweb.vercel.app**
 
-1. Push this repository to GitHub (see **GitHub** below).
-2. In [Vercel](https://vercel.com) → **Add New…** → **Project** → **Import** your GitHub repo.
-3. Vercel should pick up `vercel.json` automatically. **Root directory** stays the **repository root** (not `web/`); install/build run inside `web/` using [`web/package-lock.json`](web/package-lock.json) so Linux builders resolve Rollup’s optional native packages reliably (`npm install` only at the monorepo root is not used on Vercel).
-4. **Environment variables** (optional): set `VITE_SUPABASE_*` / `VITE_ENGINE_URL` if you want them baked into the build. For the usual **hosted web + local engine** flow, users often leave Supabase to **runtime** via the engine (`/api/setup/runtime-config`) and use the default engine URL (`http://127.0.0.1:7777`).
-5. **Supabase Auth**: add your production site URL (e.g. `https://your-app.vercel.app`) under Supabase → Authentication → URL Configuration → **Redirect URLs**.
-6. **Local engine CORS**: add that same origin to `CTRACK_WEB_ORIGINS` in `%USERPROFILE%\.ctrack-engine\.env` on machines running the engine.
+Supabase Auth → Redirect URLs: `https://ctrackpublishweb.vercel.app/` and `/link-engine`.
 
 ### GitHub (first push)
 

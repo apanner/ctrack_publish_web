@@ -17,6 +17,7 @@ import { Spinner } from "@/components/ui/spinner"
 import { useAuth } from "@/hooks/use-auth"
 import { useContextStore } from "@/hooks/use-context-store"
 import { usePublishQueue } from "@/hooks/usePublishQueue"
+import { buildShotRootPath } from "@/lib/storage-paths"
 import { useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import {
@@ -140,7 +141,7 @@ export function ProjectCreationWizard({
   onSuccess,
   onNavigateToQueue,
 }: ProjectCreationWizardProps) {
-  const { profile, user, studioId } = useAuth()
+  const { profile, user, studioId, studio } = useAuth()
   const { setProjectId } = useContextStore()
   const { addJob, processNextJob } = usePublishQueue()
   const queryClient = useQueryClient()
@@ -630,10 +631,20 @@ export function ProjectCreationWizard({
         const matchedShot = findBestShotMatch(item, createResult.shots)
         if (!matchedShot) continue
 
+        const studioSlug = studio?.slug?.trim()
+        if (!studioSlug) {
+          toast.error("No active studio — cannot build storage paths")
+          return
+        }
+
         const episodeCode = 'episode_code' in matchedShot ? matchedShot.episode_code : null
-        const shotRootPath = episodeCode
-          ? `Projects/${createResult.projectCode}/${episodeCode}/${matchedShot.sequence_name}/${matchedShot.shot_code}`
-          : `Projects/${createResult.projectCode}/${matchedShot.sequence_name}/${matchedShot.shot_code}`
+        const shotRootPath = buildShotRootPath(
+          studioSlug,
+          createResult.projectCode,
+          matchedShot.sequence_name,
+          matchedShot.shot_code,
+          episodeCode
+        )
 
         const versionsBasePath = `${shotRootPath}/Versions`
         const elementsBasePath = `${shotRootPath}/Elements`

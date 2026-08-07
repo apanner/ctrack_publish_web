@@ -1,4 +1,6 @@
-# Dev & Deploy — CTrack Publish
+# Release & Deploy — CTrack Publish
+
+> **CI-only releases:** see **[RELEASE.md](./RELEASE.md)** — push to GitHub; do not build or deploy production artifacts locally.
 
 Quick reference after DB migration is applied. For **hybrid MinIO + AWS S3** setup and testing see [DUAL_STORAGE.md](./DUAL_STORAGE.md).
 
@@ -119,7 +121,8 @@ npx supabase@latest functions deploy engine-pair-init --no-verify-jwt
 | Mode | Trigger | What runs |
 |------|---------|-----------|
 | **Dev** | Push/PR to `main` / `develop` | `npm ci` + build engine + web (`.github/workflows/ctrack-dev.yml`) |
-| **Deploy** | Git tag `v*` or manual dispatch | Edge Functions → build Windows installers → GitHub Release + `engine_releases` (`.github/workflows/ctrack-deploy.yml`) |
+| **Web deploy** | Push to `main` (web paths) | Vercel production (`.github/workflows/ctrack-deploy-web.yml`) |
+| **Engine release** | Git tag `v*` or manual dispatch | Edge Functions → Windows installers → GitHub Release + `engine_releases` (`.github/workflows/ctrack-deploy.yml`) |
 
 ## Local scripts
 

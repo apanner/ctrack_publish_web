@@ -6,6 +6,7 @@ import { useAppLogStore } from '@/store/app-log-store';
 import { usePublishQueueStore } from '@/store/publish-queue-store';
 import { DEFAULT_SETTINGS } from '@/types/settings';
 import type { AppSettings } from '@/types/settings';
+import { buildShotRootPath, joinPathSegment } from '@/lib/storage-paths';
 
 function formatBytes(bytes: number): string {
     if (bytes === 0) return '0 B';
@@ -128,18 +129,12 @@ async function notifyShotPublishRecipients(params: {
     throw error;
 }
 
-/** Matches bulk ingest path: Projects/{project}/{episodeCode}/{sequenceName}/{shotCode} (no Episodes/Sequences/Shots segments). */
-function buildShotRootPath(projectCode: string, sequenceName: string, shotCode: string, episodeCode?: string | null): string {
-    const episodePart = episodeCode ? `/${episodeCode}` : '';
-    return `Projects/${projectCode}${episodePart}/${sequenceName}/${shotCode}`;
-}
-
-/** Builds S3/MinIO object key. Result must be a file key (no trailing slash) so the object is stored as a file, not shown as a folder. */
-function joinPathSegment(basePath: string, segment: string): string {
-    const normalizedBase = basePath.replace(/\/+$/, '');
-    const normalizedSegment = segment.replace(/^\/+/, '').replace(/\/+$/, '');
-    if (!normalizedSegment) return normalizedBase;
-    return `${normalizedBase}/${normalizedSegment}`;
+function resolveStudioSlugForStorage(): string {
+    const slug = useContextStore.getState().studio?.slug?.trim();
+    if (!slug) {
+        throw new Error('No active studio — cannot build storage path');
+    }
+    return slug;
 }
 
 async function resolveCanonicalPathContext(params: {
@@ -709,7 +704,7 @@ export function usePublishQueue() {
 
             const episodeCodeFromJob = resolvedEpisodeCode;
             const storagePlan = job.meta?.storagePlan;
-            const shotRootPath = storagePlan?.shotRootPath || buildShotRootPath(projectCode as string, sequenceName as string, shotCode as string, episodeCodeFromJob);
+            const shotRootPath = storagePlan?.shotRootPath || buildShotRootPath(resolveStudioSlugForStorage(), projectCode as string, sequenceName as string, shotCode as string, episodeCodeFromJob);
             const versionsBasePath = storagePlan?.versionsBasePath || `${shotRootPath}/Versions`;
             const rawTrackingNumber = job.meta?.trackingNumber || job.context?.trackingNumber || null;
             const sanitizedTrackingNumber = sanitizeTrackingNumber(rawTrackingNumber);
@@ -1173,7 +1168,7 @@ export function usePublishQueue() {
             const versionLabel = `v${String(nextVersion).padStart(3, '0')}`;
 
             const storagePlan = job.meta?.storagePlan;
-            const shotRootPath = storagePlan?.shotRootPath || buildShotRootPath(projectCode as string, sequenceName as string, shotCode as string, episodeCodeFromJob);
+            const shotRootPath = storagePlan?.shotRootPath || buildShotRootPath(resolveStudioSlugForStorage(), projectCode as string, sequenceName as string, shotCode as string, episodeCodeFromJob);
             const elementsBasePath = storagePlan?.elementsBasePath || `${shotRootPath}/Elements`;
             // ShotGrid-style element path:
             // Projects/{project}/{episode}/{sequence}/{shot}/Elements/{vLabel}/

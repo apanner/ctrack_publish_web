@@ -41,5 +41,6 @@ engine/runtime/python/
 Release/
 release/
 out/
-.vercel
+.vercel/
+.vercel/**
 ctrack_nuke/installer/output/

@@ -9,6 +9,7 @@
     "dev:web": "npm run dev -w web",
     "dev:engine": "npm run dev -w engine",
     "build": "npm run build -w engine && npm run build -w web",
+    "clean:all": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/clean-all.ps1",
     "lint": "npm run lint -w web --if-present && npm run lint -w engine --if-present",
     "pack:release": "scripts\\build-release.bat /nopause",
     "pack:installer": "scripts\\build-installer.bat",

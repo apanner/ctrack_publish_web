@@ -566,14 +566,16 @@ def generate_preview_webp(input_path, output_path, options=None, log_callback=No
         if threads is not None and threads > 0:
             cmd.extend(['-threads', str(threads)])
         
-        # Only add duration limit if we are looping a single image
-        if any(input_path.lower().endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.tif', '.tiff', '.exr', '.tga']):
-             cmd.extend(['-t', str(duration_seconds)])
+        # Cap duration for stills AND video/MP4 (hover previews should stay short)
+        is_still = any(input_path.lower().endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.tif', '.tiff', '.exr', '.tga'])
+        if is_still or not is_sequence:
+            if duration_seconds and float(duration_seconds) > 0:
+                cmd.extend(['-t', str(duration_seconds)])
         cmd.extend(['-vf', vf])
         cmd.extend([
             '-vcodec', 'libwebp',
             '-lossless', '0',
-            '-qscale', str(quality),
+            '-q:v', str(quality),
             '-loop', '0',
             '-an',
             output_path

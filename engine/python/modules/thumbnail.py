@@ -142,7 +142,7 @@ def generate_thumbnails(input_path, output_dir, options=None, log_callback=None)
             cmd_webp.extend([
                 '-vcodec', 'libwebp',
                 '-lossless', '0',
-                '-qscale', '75',
+                '-q:v', '75',
                 '-loop', '0',
                 '-an',
                 webp_path
