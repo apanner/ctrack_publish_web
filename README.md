@@ -92,7 +92,7 @@ CTRACK_WEB_ORIGINS=https://ctrackpublishweb.vercel.app,http://localhost:5173,htt
 | What | How |
 |------|-----|
 | **Web UI** | Push to `main` → **Vercel** (Git integration, not GH Actions) |
-| **Engine installer** | Tag `v*` → [CTrack Deploy](.github/workflows/ctrack-deploy.yml) → **Windows** runner → GitHub Releases |
+| **Engine installer** | Tag `v*` → [ctrack_publish_web_deploy](.github/workflows/ctrack_publish_web_deploy.yml) → **Windows** runner → GitHub Releases |
 
 Full guide: [`docs/RELEASE.md`](docs/RELEASE.md)
 

@@ -96,7 +96,7 @@ git push origin main
 git push origin v0.1.11
 ```
 
-### 3. What CI does (`ctrack-deploy.yml`)
+### 3. What CI does (`ctrack_publish_web_deploy.yml`)
 
 On tag `v*`:
 
@@ -134,7 +134,7 @@ npm run clean:all    # remove dist/, release/, .vercel/ — safe before commit
 | Workflow file | Trigger | Runner | Output |
 |---------------|---------|--------|--------|
 | `ctrack-dev.yml` | PR / push `main` | **windows-latest** | Verify build |
-| `ctrack-deploy.yml` | tag `v*` / manual | **windows-latest** | GitHub Release installers |
+| `ctrack_publish_web_deploy.yml` | tag `v*` / manual | **windows-latest** | GitHub Release installers |
 
 Web deploy: **Vercel Git integration only** (not GitHub Actions).
 

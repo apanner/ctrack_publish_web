@@ -7,6 +7,7 @@ import { usePublishQueueStore } from '@/store/publish-queue-store';
 import { DEFAULT_SETTINGS } from '@/types/settings';
 import type { AppSettings } from '@/types/settings';
 import { buildShotRootPath, joinPathSegment } from '@/lib/storage-paths';
+import { buildThumbOptions } from '@/lib/thumb-settings';
 
 function formatBytes(bytes: number): string {
     if (bytes === 0) return '0 B';
@@ -616,7 +617,7 @@ export function usePublishQueue() {
                             frame_skip: appSettings.gif.frameSkip || 2,
                             quality: 75
                         },
-                        thumb_options: {}
+                        thumb_options: buildThumbOptions(appSettings, resolvedFrameStart, resolvedFrameEnd)
                     }
                 });
                 transcodeResult = (pythonResult as any)?.transcode as { status: string; output?: string; message?: string };
@@ -1104,12 +1105,7 @@ export function usePublishQueue() {
                             fps: appSettings.gif.fps || 6,
                             frame_skip: appSettings.gif.frameSkip || 2
                         },
-                        thumb_options: {
-                            frame_skip: appSettings.gif.frameSkip || 2,
-                            fps: appSettings.gif.fps || 6,
-                            frame_start: resolvedFrameStart ?? null,
-                            frame_end: resolvedFrameEnd ?? null
-                        }
+                        thumb_options: buildThumbOptions(appSettings, resolvedFrameStart, resolvedFrameEnd)
                     }
                 });
                 if (pythonResult.status === 'error') throw new Error((pythonResult as { message?: string }).message);
@@ -1122,12 +1118,7 @@ export function usePublishQueue() {
                     params: {
                         input_path: job.filePath,
                         output_dir: thumbDir,
-                        options: {
-                            frame_skip: appSettings.gif.frameSkip || 2,
-                            fps: appSettings.gif.fps || 6,
-                            frame_start: resolvedFrameStart ?? null,
-                            frame_end: resolvedFrameEnd ?? null
-                        }
+                        options: buildThumbOptions(appSettings, resolvedFrameStart, resolvedFrameEnd)
                     }
                 });
             }

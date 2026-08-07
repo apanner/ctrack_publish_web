@@ -25,7 +25,7 @@ if ($null -eq $gh) {
   throw "GitHub CLI (gh) not found. Install from https://cli.github.com/"
 }
 
-$workflowFile = "ctrack-deploy.yml"
+$workflowFile = "ctrack_publish_web_deploy.yml"
 $gitRoot = (git -C $PSScriptRoot rev-parse --show-toplevel 2>$null)
 if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($gitRoot)) {
   $gitRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path

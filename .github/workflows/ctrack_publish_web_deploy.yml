@@ -1,4 +1,4 @@
-name: CTrack Deploy (release)
+name: ctrack_publish_web_deploy
 
 on:
   push:
@@ -31,7 +31,8 @@ permissions:
   contents: write
 
 jobs:
-  deploy:
+  windows_release:
+    name: Windows build and GitHub Release
     runs-on: windows-latest
 
     env:
@@ -71,7 +72,7 @@ jobs:
         shell: powershell
         run: choco install innosetup --no-progress -y
 
-      - name: Deploy Edge Functions + publish GitHub Release
+      - name: Sync version, build installers, publish release
         shell: powershell
         env:
           GITHUB_SHA: ${{ github.sha }}

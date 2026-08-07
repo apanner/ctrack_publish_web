@@ -212,7 +212,7 @@ Tag push triggers **Deploy** workflow automatically.
 
 1. Copy deploy env: `copy .env.deploy.example .env.deploy` and fill `SUPABASE_*` + `GITHUB_RELEASE_TOKEN`.
 2. Push secrets to GitHub: `npm run deploy:secrets:github`
-3. Commit and push `.github/workflows/ctrack-deploy.yml` + `ctrack_publish_web/` (workflow must exist on `main`).
+3. Commit and push `.github/workflows/ctrack_publish_web_deploy.yml` + `ctrack_publish_web/` (workflow must exist on `main`).
 4. Trigger without local build: `npm run deploy:release:remote`
 
 Or: GitHub → Actions → **CTrack Deploy (release)** → Run workflow.
