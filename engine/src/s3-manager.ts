@@ -1,18 +1,53 @@
-import { HeadBucketCommand, ListBucketsCommand, S3Client } from "@aws-sdk/client-s3"
+import { HeadBucketCommand, ListBucketsCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3"
 import { Upload } from "@aws-sdk/lib-storage"
 import fs from "node:fs"
 import path from "node:path"
+import {
+  createStorageRequestHandler,
+  normalizeEndpoint,
+  readUploadBody,
+  trimEnv,
+} from "./storage-http.js"
 
-function trimEnv(value: string | undefined | null): string {
-  if (!value) return ""
-  let trimmed = value.trim()
-  if (
-    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
-    (trimmed.startsWith("'") && trimmed.endsWith("'"))
-  ) {
-    trimmed = trimmed.slice(1, -1).trim()
+const MULTIPART_THRESHOLD_BYTES = 200 * 1024 * 1024
+
+function createS3Client(params: {
+  region: string
+  accessKeyId: string
+  secretAccessKey: string
+  endpoint?: string | null
+  forcePathStyle?: boolean
+}): S3Client {
+  return new S3Client({
+    region: params.region,
+    endpoint: params.endpoint || undefined,
+    forcePathStyle: params.forcePathStyle,
+    credentials: {
+      accessKeyId: params.accessKeyId,
+      secretAccessKey: params.secretAccessKey,
+    },
+    requestHandler: createStorageRequestHandler(),
+    maxAttempts: 3,
+    requestChecksumCalculation: "WHEN_REQUIRED",
+    responseChecksumValidation: "WHEN_REQUIRED",
+  })
+}
+
+function formatUploadError(provider: "s3" | "minio", error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error)
+  if (raw.toLowerCase().includes("unable to verify the first certificate")) {
+    return `${raw} — Windows TLS trust issue (restart engine after update; win-ca loads at startup)`
   }
-  return trimmed
+  if (raw.includes("SignatureDoesNotMatch")) {
+    if (provider === "minio") {
+      return `${raw} — verify HYBRID_STORAGE_PRIMARY_SECRET_KEY is the MinIO S3 secret (Identity → Access Keys), not the console password`
+    }
+    return `${raw} — verify AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_REGION match bucket ${trimEnv(process.env.AWS_S3_BUCKET_NAME) || "ctrack-storage"}`
+  }
+  if (raw.toLowerCase().includes("non-retryable streaming request")) {
+    return `${raw} — update engine to latest build (buffered MinIO upload)`
+  }
+  return raw
 }
 
 type UploadOk = {
@@ -65,15 +100,13 @@ export class S3Manager {
     this.awsRegion = trimEnv(process.env.AWS_REGION) || "ap-south-1"
     const awsAccessKey = trimEnv(process.env.AWS_ACCESS_KEY_ID)
     const awsSecretKey = trimEnv(process.env.AWS_SECRET_ACCESS_KEY)
-    this.awsClient = new S3Client({
+    this.awsClient = createS3Client({
       region: this.awsRegion,
-      credentials: {
-        accessKeyId: awsAccessKey,
-        secretAccessKey: awsSecretKey,
-      },
+      accessKeyId: awsAccessKey,
+      secretAccessKey: awsSecretKey,
     })
 
-    this.minioEndpoint = trimEnv(process.env.HYBRID_STORAGE_PRIMARY_ENDPOINT) || null
+    this.minioEndpoint = normalizeEndpoint(process.env.HYBRID_STORAGE_PRIMARY_ENDPOINT)
     this.minioBucket = trimEnv(process.env.HYBRID_STORAGE_PRIMARY_BUCKET) || null
     this.minioRegion = trimEnv(process.env.HYBRID_STORAGE_PRIMARY_REGION) || "us-east-1"
 
@@ -81,13 +114,11 @@ export class S3Manager {
     const minioSecretKey = trimEnv(process.env.HYBRID_STORAGE_PRIMARY_SECRET_KEY)
 
     if (this.minioEndpoint && this.minioBucket && minioAccessKey && minioSecretKey) {
-      this.minioClient = new S3Client({
-        endpoint: this.minioEndpoint,
+      this.minioClient = createS3Client({
         region: this.minioRegion,
-        credentials: {
-          accessKeyId: minioAccessKey,
-          secretAccessKey: minioSecretKey,
-        },
+        accessKeyId: minioAccessKey,
+        secretAccessKey: minioSecretKey,
+        endpoint: this.minioEndpoint,
         forcePathStyle: true,
       })
       console.log("[MinIO] Hybrid storage enabled:", this.minioEndpoint, "bucket:", this.minioBucket)
@@ -157,7 +188,7 @@ export class S3Manager {
             : `Auth OK but bucket "${params.bucket}" not found. Available: ${names.join(", ") || "none"}`,
         }
       } catch (listError) {
-        const message = listError instanceof Error ? listError.message : String(listError)
+        const message = formatUploadError(params.provider, listError)
         return {
           provider: params.provider,
           configured: true,
@@ -182,18 +213,6 @@ export class S3Manager {
     const minioSecretKey = trimEnv(process.env.HYBRID_STORAGE_PRIMARY_SECRET_KEY)
     const minioConfigured = !!(this.minioEndpoint && this.minioBucket && minioAccessKey && minioSecretKey)
 
-    const minioClient =
-      minioConfigured && this.minioClient
-        ? this.minioClient
-        : minioConfigured
-          ? new S3Client({
-              endpoint: this.minioEndpoint!,
-              region: this.minioRegion,
-              credentials: { accessKeyId: minioAccessKey, secretAccessKey: minioSecretKey },
-              forcePathStyle: true,
-            })
-          : null
-
     const s3Probe = await this.probeBucket({
       client: this.awsClient,
       provider: "s3",
@@ -203,9 +222,9 @@ export class S3Manager {
       configured: awsConfigured,
     })
 
-    const minioProbe = minioClient
+    const minioProbe = this.minioClient
       ? await this.probeBucket({
-          client: minioClient,
+          client: this.minioClient,
           provider: "minio",
           bucket: this.minioBucket!,
           endpoint: this.minioEndpoint,
@@ -241,41 +260,59 @@ export class S3Manager {
     onProgress?: (progress: number) => void
     urlBuilder?: (bucketName: string, key: string) => string
   }): Promise<UploadResult> {
-    const key = params.key.replace(/\/+$/, "")
-    const fileStream = fs.createReadStream(params.filePath)
-
-    const upload = new Upload({
-      client: params.client,
-      params: {
-        Bucket: params.bucketName,
-        Key: key,
-        Body: fileStream,
-        ContentType: this.getContentType(params.filePath),
-      },
-      queueSize: 4,
-      partSize: 1024 * 1024 * 5,
-      leavePartsOnError: false,
-    })
-
-    upload.on("httpUploadProgress", (progress) => {
-      if (!params.onProgress || !progress.loaded || !progress.total) return
-      params.onProgress(Math.round((progress.loaded / progress.total) * 100))
-    })
+    const key = params.key.replace(/\/+$/, "").replace(/^\/+/, "")
+    const stats = fs.statSync(params.filePath)
+    const contentType = this.getContentType(params.filePath)
+    const useBufferedPut = params.provider === "minio" || stats.size <= MULTIPART_THRESHOLD_BYTES
 
     try {
       if (params.provider === "minio") {
-        console.log("[MinIO] Uploading:", params.key, "->", params.bucketName)
+        console.log("[MinIO] Uploading:", key, "->", params.bucketName, `(${stats.size} bytes, buffered=${useBufferedPut})`)
       }
-      await upload.done()
-      const stats = fs.statSync(params.filePath)
+
+      if (useBufferedPut) {
+        const body = await readUploadBody(params.filePath)
+        await params.client.send(
+          new PutObjectCommand({
+            Bucket: params.bucketName,
+            Key: key,
+            Body: body,
+            ContentLength: body.length,
+            ContentType: contentType,
+          })
+        )
+        params.onProgress?.(100)
+      } else {
+        const upload = new Upload({
+          client: params.client,
+          params: {
+            Bucket: params.bucketName,
+            Key: key,
+            Body: await readUploadBody(params.filePath),
+            ContentLength: stats.size,
+            ContentType: contentType,
+          },
+          queueSize: 4,
+          partSize: 1024 * 1024 * 8,
+          leavePartsOnError: false,
+        })
+
+        upload.on("httpUploadProgress", (progress) => {
+          if (!params.onProgress || !progress.loaded || !progress.total) return
+          params.onProgress(Math.round((progress.loaded / progress.total) * 100))
+        })
+        await upload.done()
+      }
+
       const url = params.urlBuilder ? params.urlBuilder(params.bucketName, key) : undefined
       if (params.provider === "minio") {
         console.log("[MinIO] OK:", key, "size:", stats.size)
       }
       return { status: "success", url, key, size: stats.size, provider: params.provider }
     } catch (error) {
-      console.error(`[${params.provider}] Upload error:`, key, error)
-      return { status: "error", message: String(error) }
+      const message = formatUploadError(params.provider, error)
+      console.error(`[${params.provider}] Upload error:`, key, message)
+      return { status: "error", message }
     }
   }
 
@@ -292,7 +329,7 @@ export class S3Manager {
   }
 
   async uploadFileHybrid(filePath: string, awsBucketName: string, key: string, onProgress?: (progress: number) => void): Promise<UploadResult> {
-    console.log("[MinIO] Hybrid publish: key:", key, "- will try MinIO then S3; if one fails, other must upload.")
+    console.log("[MinIO] Hybrid publish: key:", key, "- will try MinIO then S3; publish succeeds if either works.")
     let minioResult: UploadResult
     let s3Result: UploadResult
 
@@ -303,6 +340,7 @@ export class S3Manager {
         filePath,
         bucketName: this.minioBucket,
         key,
+        onProgress,
         urlBuilder: (b, k) => `${this.minioEndpoint}/${b}/${encodeURI(k)}`,
       })
       if (minioResult.status === "error") {

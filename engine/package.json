@@ -1,19 +1,21 @@
 {
     "name":  "@ctrack/engine",
-    "version":  "0.1.12",
+    "version":  "0.1.13",
     "private":  true,
     "type":  "module",
     "main":  "dist/server.js",
     "scripts":  {
-                    "dev":  "tsx watch src/server.ts",
+                    "dev":  "node --use-system-ca ./node_modules/tsx/dist/cli.mjs watch src/server.ts",
                     "build":  "tsc -p tsconfig.json",
                     "bundle":  "ncc build src/server.ts -o dist-bundle -m --external better-sqlite3",
-                    "start":  "node dist/server.js",
+                    "start":  "node --use-system-ca dist/server.js",
                     "lint":  "eslint src --ext .ts --max-warnings 0"
                 },
     "dependencies":  {
                          "@aws-sdk/client-s3":  "^3.978.0",
                          "@aws-sdk/lib-storage":  "^3.978.0",
+                         "@smithy/node-http-handler":  "^4.0.4",
+                         "win-ca":  "^3.5.1",
                          "@supabase/supabase-js":  "^2.93.3",
                          "better-sqlite3":  "^12.6.2",
                          "cors":  "^2.8.5",

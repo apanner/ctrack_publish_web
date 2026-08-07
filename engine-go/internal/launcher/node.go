@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 )
 
@@ -23,6 +24,7 @@ func StartNodeEngine(installRoot string) *NodeChild {
 
 	cmd := exec.Command(nodeExe, "dist/server.js")
 	cmd.Dir = engineDir
+	cmd.Env = appendNodeOptions(os.Environ(), "--use-system-ca")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	applyWindowsHideWindow(cmd)
@@ -41,6 +43,20 @@ func (n *NodeChild) Stop() {
 	}
 	_ = n.cmd.Process.Kill()
 	_, _ = n.cmd.Process.Wait()
+}
+
+func appendNodeOptions(env []string, flag string) []string {
+	for i, entry := range env {
+		if !strings.HasPrefix(entry, "NODE_OPTIONS=") {
+			continue
+		}
+		if strings.Contains(entry, flag) {
+			return env
+		}
+		env[i] = entry + " " + flag
+		return env
+	}
+	return append(env, "NODE_OPTIONS="+flag)
 }
 
 func applyWindowsHideWindow(cmd *exec.Cmd) {

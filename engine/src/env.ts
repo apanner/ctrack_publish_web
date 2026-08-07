@@ -1,6 +1,7 @@
 import fs from "node:fs"
 import path from "node:path"
 import dotenv from "dotenv"
+import { bootstrapWindowsTls } from "./storage-http.js"
 import { getEngineRoot, getUserDataDir } from "./paths.js"
 
 /**
@@ -27,6 +28,7 @@ export function loadEnv(): void {
     dotenv.config({ path: userEnv, override: true })
   }
   dotenv.config()
+  bootstrapWindowsTls()
 }
 
 loadEnv()

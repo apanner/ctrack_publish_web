@@ -2,16 +2,26 @@ import dotenv from "dotenv"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { HeadBucketCommand, ListBucketsCommand, S3Client } from "@aws-sdk/client-s3"
+import { NodeHttpHandler } from "@smithy/node-http-handler"
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 dotenv.config({ path: path.join(root, "engine", ".env") })
+dotenv.config({ path: path.join(root, ".env") })
 
-async function probe(label, config) {
-  if (!config.bucket || !config.accessKey || !config.secret) {
-    console.log(`${label}: SKIP (missing credentials or bucket)`)
-    return { label, ok: false, configured: false, message: "Not configured" }
+function trimEnv(value) {
+  if (!value) return ""
+  let trimmed = String(value).trim()
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    trimmed = trimmed.slice(1, -1).trim()
   }
-  const client = new S3Client({
+  return trimmed
+}
+
+function createClient(config) {
+  return new S3Client({
     region: config.region,
     endpoint: config.endpoint,
     credentials: {
@@ -19,7 +29,23 @@ async function probe(label, config) {
       secretAccessKey: config.secret,
     },
     forcePathStyle: config.forcePathStyle,
+    requestHandler: new NodeHttpHandler({
+      requestTimeout: 600_000,
+      connectionTimeout: 30_000,
+      socketTimeout: 600_000,
+    }),
+    maxAttempts: 3,
+    requestChecksumCalculation: "WHEN_REQUIRED",
+    responseChecksumValidation: "WHEN_REQUIRED",
   })
+}
+
+async function probe(label, config) {
+  if (!config.bucket || !config.accessKey || !config.secret) {
+    console.log(`${label}: SKIP (missing credentials or bucket)`)
+    return { label, ok: false, configured: false, message: "Not configured" }
+  }
+  const client = createClient(config)
   const started = Date.now()
   try {
     await client.send(new HeadBucketCommand({ Bucket: config.bucket }))
@@ -60,23 +86,25 @@ async function probe(label, config) {
   }
 }
 
+const minioEndpoint = trimEnv(process.env.HYBRID_STORAGE_PRIMARY_ENDPOINT).replace(/\/+$/, "")
+
 const minio = await probe("MinIO", {
-  bucket: process.env.HYBRID_STORAGE_PRIMARY_BUCKET,
-  accessKey: process.env.HYBRID_STORAGE_PRIMARY_ACCESS_KEY,
-  secret: process.env.HYBRID_STORAGE_PRIMARY_SECRET_KEY,
-  region: process.env.HYBRID_STORAGE_PRIMARY_REGION || "us-east-1",
-  endpoint: process.env.HYBRID_STORAGE_PRIMARY_ENDPOINT,
+  bucket: trimEnv(process.env.HYBRID_STORAGE_PRIMARY_BUCKET),
+  accessKey: trimEnv(process.env.HYBRID_STORAGE_PRIMARY_ACCESS_KEY),
+  secret: trimEnv(process.env.HYBRID_STORAGE_PRIMARY_SECRET_KEY),
+  region: trimEnv(process.env.HYBRID_STORAGE_PRIMARY_REGION) || "us-east-1",
+  endpoint: minioEndpoint || undefined,
   forcePathStyle: true,
 })
 
 const s3 = await probe("AWS S3", {
-  bucket: process.env.AWS_S3_BUCKET_NAME,
-  accessKey: process.env.AWS_ACCESS_KEY_ID,
-  secret: process.env.AWS_SECRET_ACCESS_KEY,
-  region: process.env.AWS_REGION || "ap-south-1",
+  bucket: trimEnv(process.env.AWS_S3_BUCKET_NAME),
+  accessKey: trimEnv(process.env.AWS_ACCESS_KEY_ID),
+  secret: trimEnv(process.env.AWS_SECRET_ACCESS_KEY),
+  region: trimEnv(process.env.AWS_REGION) || "ap-south-1",
   endpoint: undefined,
   forcePathStyle: false,
 })
 
-console.log("STORAGE_PROVIDER=", process.env.STORAGE_PROVIDER)
+console.log("STORAGE_PROVIDER=", trimEnv(process.env.STORAGE_PROVIDER))
 console.log("summary", JSON.stringify({ minio, s3 }, null, 2))

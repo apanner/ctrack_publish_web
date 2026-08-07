@@ -217,6 +217,7 @@ Users without the engine get **Download engine v0.1.2** from `/link-engine` or t
 
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
+| `unable to verify the first certificate` on S3 | Windows Node missing OS CA store | Restart engine with `NODE_OPTIONS=--use-system-ca` (tray / installer v0.1.13+) |
 | Console works, API test fails `SignatureDoesNotMatch` | Wrong `HYBRID_STORAGE_PRIMARY_SECRET_KEY` | Use MinIO access key secret, not web password |
 | `Hybrid disabled` in logs | Missing `HYBRID_STORAGE_PRIMARY_*` | Complete first-run setup or copy `engine/.env.example` |
 | Publish works, MinIO FAIL in test | Engine not restarted after `.env` change | Restart **CTrack Engine Tray** |

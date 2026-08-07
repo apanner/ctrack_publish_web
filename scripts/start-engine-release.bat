@@ -12,6 +12,7 @@ if not exist "dist\server.js" (
   exit /b 1
 )
 echo [ctrack] Engine http://127.0.0.1:7777 — close this window to stop.
+set "NODE_OPTIONS=--use-system-ca"
 "%NODE_EXE%" dist\server.js
 popd
 pause

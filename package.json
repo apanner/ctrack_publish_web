@@ -21,7 +21,8 @@
     "deploy:release:remote": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/trigger-release-workflow.ps1",
     "deploy:secrets:github": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/setup-github-deploy-secrets.ps1",
     "deploy:verify": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-edge-functions.ps1",
-    "test:storage": "node scripts/test-storage-connections.mjs"
+    "test:storage": "node --use-system-ca scripts/test-storage-connections.mjs",
+    "test:upload": "node --use-system-ca scripts/test-upload.mjs"
   },
   "workspaces": [
     "engine",
