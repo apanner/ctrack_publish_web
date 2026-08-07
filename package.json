@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "description": "CTrack Publish hybrid monorepo: lightweight local engine + web UI",
   "scripts": {
-    "postinstall": "npm rebuild better-sqlite3 -w engine && powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ensure-engine-runtime.ps1 -TargetRoot engine && powershell -NoProfile -ExecutionPolicy Bypass -File scripts/provision-gui-python.ps1 -TargetRoot engine",
+    "postinstall": "node -e \"if(process.env.CTRACK_SKIP_POSTINSTALL_RUNTIME==='1')process.exit(0)\" && npm rebuild better-sqlite3 -w engine && powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ensure-engine-runtime.ps1 -TargetRoot engine && powershell -NoProfile -ExecutionPolicy Bypass -File scripts/provision-gui-python.ps1 -TargetRoot engine",
     "dev": "concurrently -n web,engine -c blue,green \"npm run dev -w web\" \"npm run dev -w engine\"",
     "dev:web": "npm run dev -w web",
     "dev:engine": "npm run dev -w engine",
