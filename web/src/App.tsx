@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { Toaster, toast } from "sonner"
-import { supabase } from "@/lib/supabase"
+import { initializeSupabase, supabase } from "@/lib/supabase"
 import { AuthGuard } from "@/components/auth/AuthGuard"
 import { AppShell } from "@/components/layout/AppShell"
 import { LoadingOverlay } from "@/components/ui/spinner"
@@ -25,6 +25,12 @@ function App() {
       codeHandledRef.current = true
       toast.info("Completing sign in…", { duration: 5000 })
       try {
+        const ok = await initializeSupabase()
+        if (!ok) {
+          throw new Error(
+            "Missing Supabase config. Set VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY (same project as ctrack_v0)."
+          )
+        }
         const { data: { session }, error } = await supabase.auth.exchangeCodeForSession(code)
         if (error) throw error
         queryClient.setQueryData(AUTH_QUERY_KEYS.session, session)

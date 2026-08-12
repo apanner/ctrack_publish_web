@@ -36,21 +36,27 @@ Required GitHub secrets (engine release only — **no Linux runners**):
 
 Connect the repo in [Vercel](https://vercel.com) → Import `apanner/ctrack_publish_web`. Vercel reads [`vercel.json`](../vercel.json) and builds `web/` on **Vercel’s builders** when you push to `main`.
 
-Set env vars in Vercel → Project → Settings → Environment Variables:
+Set env vars in Vercel → Project → Settings → Environment Variables (must match **ctrack_v0** / same Supabase project):
 
-- `VITE_SUPABASE_URL`
-- `VITE_SUPABASE_ANON_KEY`
-- `VITE_AUTH_CALLBACK_URL` = `https://ctrackpublishweb.vercel.app/`
+- `VITE_SUPABASE_URL` = same as ctrack_v0 `NEXT_PUBLIC_SUPABASE_URL` (e.g. `https://czwfeqheduofviockrab.supabase.co`)
+- `VITE_SUPABASE_ANON_KEY` = same as ctrack_v0 `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `VITE_AUTH_CALLBACK_URL` = `https://ctrackpublishweb.vercel.app/` (optional; app falls back to current origin)
+
+Rebuild the Vercel deployment after changing `VITE_*` (they are baked in at build time).
 
 **GitHub Actions are Windows-only** (engine installer). Do not add a Linux web-deploy workflow.
 
 ### 3. Supabase Auth redirect URLs
 
-Add to Supabase → Authentication → URL Configuration:
+Same Supabase project as ctrack_v0. Add **all** of these under Authentication → URL Configuration → Redirect URLs:
 
 - `https://ctrackpublishweb.vercel.app/`
 - `https://ctrackpublishweb.vercel.app/link-engine`
 - `http://localhost:5173/` (dev)
+- `http://127.0.0.1:5173/` (dev, if you open Vite that way)
+- `http://127.0.0.1:7777/auth/link` (optional — local engine OAuth page)
+
+ctrack_v0 keeps its own redirect (`…/auth/callback`). Google Cloud OAuth client only needs the shared Supabase callback: `https://<project-ref>.supabase.co/auth/v1/callback`.
 
 ---
 

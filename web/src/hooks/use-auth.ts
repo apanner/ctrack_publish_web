@@ -139,10 +139,14 @@ export function useAuth() {
 
   const signInWithGoogle = useMutation({
     mutationFn: async () => {
-      const redirectTo = resolveOAuthRedirectTo()
-      if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
-        throw new Error("Missing Supabase config (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY). Check .env.")
+      const { initializeSupabase } = await import("@/lib/supabase")
+      const ok = await initializeSupabase()
+      if (!ok) {
+        throw new Error(
+          "Missing Supabase config (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY). Same project as ctrack_v0."
+        )
       }
+      const redirectTo = resolveOAuthRedirectTo()
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {

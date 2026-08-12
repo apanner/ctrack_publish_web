@@ -104,11 +104,11 @@ npm run clean:all
 
 ### Vercel (web)
 
-[`vercel.json`](vercel.json) builds **only** `web/`. Connect the GitHub repo in Vercel — deploys on push to `main`. Set `VITE_SUPABASE_*` in Vercel project env vars.
+[`vercel.json`](vercel.json) builds **only** `web/`. Connect the GitHub repo in Vercel — deploys on push to `main`. Set `VITE_SUPABASE_*` in Vercel project env vars to the **same** Supabase project as ctrack_v0 (`NEXT_PUBLIC_SUPABASE_*`).
 
 Production URL: **https://ctrackpublishweb.vercel.app**
 
-Supabase Auth → Redirect URLs: `https://ctrackpublishweb.vercel.app/` and `/link-engine`.
+Supabase Auth → Redirect URLs (same project as ctrack_v0): `https://ctrackpublishweb.vercel.app/`, `https://ctrackpublishweb.vercel.app/link-engine`, plus local Vite origins if needed.
 
 ### GitHub (first push)
 

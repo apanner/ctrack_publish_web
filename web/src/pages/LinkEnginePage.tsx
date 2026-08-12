@@ -1,6 +1,6 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Download, Loader2 } from "lucide-react"
-import { supabase } from "@/lib/supabase"
+import { initializeSupabase, supabase } from "@/lib/supabase"
 import { useEnginePairing } from "@/hooks/use-engine-pairing"
 import { useEngineRelease } from "@/hooks/use-engine-release"
 import { ENGINE_BASE } from "@/lib/engine-ipc-shim"
@@ -30,6 +30,7 @@ function PageShell({ children }: { children: React.ReactNode }) {
 export function LinkEnginePage() {
   const codeHandledRef = useRef(false)
   const linkingStartedRef = useRef(false)
+  const [supabaseReady, setSupabaseReady] = useState(false)
   const [hasSession, setHasSession] = useState(false)
   const [sessionReady, setSessionReady] = useState(false)
   const [phase, setPhase] = useState<LinkPhase>(() => (readOAuthCode() ? "linking" : "login"))
@@ -45,41 +46,70 @@ export function LinkEnginePage() {
   const latestReleaseQuery = useEngineRelease({ enabled: hasSession })
   const latestVersion = latestReleaseQuery.data?.version?.trim() ?? ""
 
+  // Boot: real client → listeners → exchange ?code= (never exchange on placeholder)
   useEffect(() => {
-    void import("@/lib/supabase").then(({ initializeSupabase }) => initializeSupabase())
-    void supabase.auth.getSession().then(({ data }) => {
+    let cancelled = false
+    let unsubscribe: (() => void) | null = null
+
+    void (async () => {
+      const ok = await initializeSupabase()
+      if (cancelled) return
+      if (!ok) {
+        setError(
+          "Missing Supabase config. Set VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY (same project as ctrack_v0)."
+        )
+        setPhase("error")
+        setOauthBusy(false)
+        setSessionReady(true)
+        setSupabaseReady(false)
+        return
+      }
+      setSupabaseReady(true)
+
+      const {
+        data: { subscription },
+      } = supabase.auth.onAuthStateChange((_event, session) => {
+        if (cancelled) return
+        setHasSession(Boolean(session?.user))
+        setSessionReady(true)
+      })
+      unsubscribe = () => subscription.unsubscribe()
+
+      const code = readOAuthCode()
+      if (code && !codeHandledRef.current) {
+        codeHandledRef.current = true
+        const url = new URL(window.location.href)
+        url.searchParams.delete("code")
+        url.searchParams.delete("state")
+        window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`)
+        try {
+          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+          if (cancelled) return
+          if (exchangeError) throw exchangeError
+          setHasSession(true)
+          setSessionReady(true)
+        } catch (err) {
+          if (cancelled) return
+          setError(err instanceof Error ? err.message : "Sign in failed")
+          setPhase("error")
+          setSessionReady(true)
+        } finally {
+          if (!cancelled) setOauthBusy(false)
+        }
+        return
+      }
+
+      const { data } = await supabase.auth.getSession()
+      if (cancelled) return
       setHasSession(Boolean(data.session?.user))
       setSessionReady(true)
-    })
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setHasSession(Boolean(session?.user))
-      setSessionReady(true)
-    })
-    return () => subscription.unsubscribe()
-  }, [])
-
-  useLayoutEffect(() => {
-    const code = readOAuthCode()
-    if (!code || codeHandledRef.current) return
-    codeHandledRef.current = true
-    const url = new URL(window.location.href)
-    url.searchParams.delete("code")
-    url.searchParams.delete("state")
-    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`)
-    void (async () => {
-      try {
-        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
-        if (exchangeError) throw exchangeError
-        setHasSession(true)
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Sign in failed")
-        setPhase("error")
-      } finally {
-        setOauthBusy(false)
-      }
+      setOauthBusy(false)
     })()
+
+    return () => {
+      cancelled = true
+      unsubscribe?.()
+    }
   }, [])
 
   useEffect(() => {
@@ -148,6 +178,14 @@ export function LinkEnginePage() {
 
   const handleGoogleSignIn = async () => {
     setError(null)
+    const ok = await initializeSupabase()
+    if (!ok) {
+      setError(
+        "Missing Supabase config. Set VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY (same project as ctrack_v0)."
+      )
+      setPhase("error")
+      return
+    }
     const redirectTo = `${window.location.origin}/link-engine`
     const { error: signInError } = await supabase.auth.signInWithOAuth({
       provider: "google",
@@ -186,7 +224,42 @@ export function LinkEnginePage() {
     setPhase("linking")
   }
 
-  if (!sessionReady || oauthBusy) {
+  if (phase === "error") {
+    const isConfigError = !supabaseReady
+    return (
+      <PageShell>
+        <p className="max-w-md text-center text-red-300">{error ?? "Something went wrong"}</p>
+        {isConfigError ? (
+          <Button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="bg-[#0096D6] hover:bg-[#0096D6]/90"
+          >
+            Retry
+          </Button>
+        ) : (
+          <>
+            <Button type="button" onClick={() => void handleRetryLinking()} className="bg-[#0096D6] hover:bg-[#0096D6]/90">
+              Try again
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setError(null)
+                setPhase("login")
+              }}
+              className="border-white/20 text-white"
+            >
+              Sign in again
+            </Button>
+          </>
+        )}
+      </PageShell>
+    )
+  }
+
+  if (!supabaseReady || !sessionReady || oauthBusy) {
     return (
       <PageShell>
         <Spinner className="h-8 w-8 text-[#24E1B1]" />
@@ -257,17 +330,6 @@ export function LinkEnginePage() {
         <p className="max-w-sm text-center text-xs text-gray-500">
           Keep CTrack Engine running. Your browser will open the local engine to finish linking.
         </p>
-      </PageShell>
-    )
-  }
-
-  if (phase === "error") {
-    return (
-      <PageShell>
-        <p className="max-w-md text-center text-red-300">{error ?? "Something went wrong"}</p>
-        <Button type="button" onClick={() => void handleRetryLinking()} className="bg-[#0096D6] hover:bg-[#0096D6]/90">
-          Try again
-        </Button>
       </PageShell>
     )
   }
