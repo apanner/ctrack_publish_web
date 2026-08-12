@@ -31,6 +31,9 @@ export class PythonManager extends EventEmitter {
   private pythonPath: string
   private scriptPath: string
   private commandCounter = 0
+  private intentionalStop = false
+  private restartTimer: ReturnType<typeof setTimeout> | null = null
+  private restartAttempts = 0
 
   constructor() {
     super()
@@ -44,6 +47,8 @@ export class PythonManager extends EventEmitter {
   }
 
   start(): void {
+    if (this.shell) return
+    this.intentionalStop = false
     const scriptDir = path.dirname(this.scriptPath)
     const pythonOptions: string[] = ["-u"]
     const scriptArgs: string[] = []
@@ -75,10 +80,41 @@ export class PythonManager extends EventEmitter {
       console.error("Python stderr:", stderr)
     })
 
+    const child = (this.shell as unknown as { childProcess?: { on: (ev: string, fn: () => void) => void } })
+      .childProcess
+    if (child && typeof child.on === "function") {
+      child.on("exit", () => {
+        this.shell = null
+        this.emit("python-exit")
+        if (this.intentionalStop) return
+        this.scheduleRestart()
+      })
+    }
+
+    this.restartAttempts = 0
     console.log(`Python sidecar started using ${this.pythonPath}`)
   }
 
+  private scheduleRestart(): void {
+    if (this.restartTimer) return
+    this.restartAttempts += 1
+    const delayMs = Math.min(30_000, 1000 * this.restartAttempts)
+    console.warn(`[PythonManager] Sidecar exited — restarting in ${delayMs}ms (attempt ${this.restartAttempts})`)
+    this.restartTimer = setTimeout(() => {
+      this.restartTimer = null
+      try {
+        this.start()
+      } catch (e) {
+        console.error("[PythonManager] restart failed:", e)
+        this.scheduleRestart()
+      }
+    }, delayMs)
+  }
+
   async sendCommand(command: string, params: Record<string, unknown> = {}): Promise<unknown> {
+    if (!this.shell) {
+      this.start()
+    }
     return new Promise((resolve, reject) => {
       if (!this.shell) {
         reject(new Error("Python shell not started"))
@@ -113,6 +149,11 @@ export class PythonManager extends EventEmitter {
   }
 
   stop(): void {
+    this.intentionalStop = true
+    if (this.restartTimer) {
+      clearTimeout(this.restartTimer)
+      this.restartTimer = null
+    }
     if (this.shell) {
       this.shell.end((err) => {
         if (err) console.error("Python stop error:", err)

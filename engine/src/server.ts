@@ -45,6 +45,13 @@ import { applyDownloadedUpdate, checkForUpdate, downloadUpdate, getPendingUpdate
 import { startAutoUpdateLoop } from "./auto-update.js"
 import { migratePlainCredentialsToDpapi } from "./credentials-dpapi.js"
 import { ENGINE_VERSION } from "./generated/engine-version.js"
+import {
+  getUiCacheStatus,
+  refreshUiCache,
+  resolveActiveWebDistDir,
+  startUiCacheLoop,
+} from "./ui-cache.js"
+import { provisionFromAccessToken } from "./provision.js"
 
 const execAsync = promisify(exec)
 const SERVICE_NAME = "ctrack-engine"
@@ -240,27 +247,12 @@ function parseCorsOrigins(): string[] {
 }
 
 function resolveWebDistDir(): string | null {
-  const candidates = [
-    path.join(getInstallRoot(), "web", "dist"),
-    path.join(getEngineRoot(), "..", "web", "dist"),
-    path.join(getEngineRoot(), "web", "dist"),
-  ]
-  for (const dir of candidates) {
-    if (fs.existsSync(path.join(dir, "index.html"))) return path.resolve(dir)
-  }
-  return null
+  return resolveActiveWebDistDir()
 }
 
-/** Serve packaged React UI from the engine (same-origin → no Chrome PNA). */
+/** Serve packaged / cached React UI from the engine (same-origin → no Chrome PNA). */
 function mountLocalWebUi(): void {
-  const webDist = resolveWebDistDir()
-  if (!webDist) {
-    console.warn("[ctrack-engine] Local web UI not found (web/dist). Tray will fall back to hosted URL.")
-    return
-  }
-  console.log(`[ctrack-engine] Serving local UI from ${webDist}`)
-  app.use(express.static(webDist, { index: "index.html", fallthrough: true }))
-  app.get("*", (req, res, next) => {
+  app.use((req, res, next) => {
     if (req.method !== "GET" && req.method !== "HEAD") {
       next()
       return
@@ -275,14 +267,38 @@ function mountLocalWebUi(): void {
       next()
       return
     }
-    if (path.extname(p)) {
+    const webDist = resolveWebDistDir()
+    if (!webDist) {
       next()
       return
     }
-    res.sendFile(path.join(webDist, "index.html"), (err) => {
-      if (err) next(err)
-    })
+    // Absolute file under dist?
+    const rel = decodeURIComponent(p === "/" ? "index.html" : p.replace(/^\/+/, ""))
+    const candidate = path.normalize(path.join(webDist, rel))
+    if (!candidate.startsWith(webDist)) {
+      next()
+      return
+    }
+    if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
+      res.sendFile(candidate)
+      return
+    }
+    // SPA fallback for extensionless routes
+    if (!path.extname(p)) {
+      const indexHtml = path.join(webDist, "index.html")
+      if (fs.existsSync(indexHtml)) {
+        res.sendFile(indexHtml)
+        return
+      }
+    }
+    next()
   })
+  const initial = resolveWebDistDir()
+  if (initial) {
+    console.log(`[ctrack-engine] Serving local UI from ${initial} (live ui-cache aware)`)
+  } else {
+    console.warn("[ctrack-engine] Local web UI not found (web/dist or ui-cache). Tray will fall back to hosted URL.")
+  }
 }
 
 const app = express()
@@ -313,9 +329,14 @@ app.get("/api", (_req, res) => {
       { method: "POST", path: "/api/auth/unpair", localhostOnly: true },
       { method: "GET", path: "/api/auth/login-url", localhostOnly: true },
       { method: "GET", path: "/api/auth/status", localhostOnly: true },
+      { method: "POST", path: "/api/auth/pair-from-session", localhostOnly: true },
+      { method: "POST", path: "/api/auth/provision", localhostOnly: true },
       { method: "POST", path: "/api/auth/refresh", localhostOnly: true },
       { method: "GET", path: "/api/diagnostics/export", localhostOnly: true },
       { method: "GET", path: "/api/logs/tail", localhostOnly: true },
+      { method: "GET", path: "/api/ui/status", localhostOnly: true },
+      { method: "POST", path: "/api/ui/refresh", localhostOnly: true },
+      { method: "POST", path: "/api/protocol/open", localhostOnly: true },
       { method: "GET", path: "/api/engine/status" },
       { method: "POST", path: "/api/engine/rescan", localhostOnly: true },
       { method: "GET", path: "/api/engine/settings" },
@@ -557,11 +578,100 @@ app.post("/api/auth/pair-from-session", localhostOnly, async (req, res) => {
         // Ignore sync errors; pairing already succeeded.
       }
     }
-    res.json({ ok: true, ...auth, email: auth.email ?? result.email })
+    // Hassle-free: pull studio storage config after login (no FirstRunSetup for artists).
+    let provision: Awaited<ReturnType<typeof provisionFromAccessToken>> | null = null
+    try {
+      provision = await provisionFromAccessToken(accessToken)
+      if (provision.ok) {
+        // Rebuild S3 manager with newly written env.
+        s3Manager = new S3Manager()
+      }
+    } catch (provErr) {
+      console.warn("[ctrack-engine] provision after pair failed:", provErr)
+    }
+    res.json({
+      ok: true,
+      ...auth,
+      email: auth.email ?? result.email,
+      setupComplete: isSetupComplete(),
+      provision: provision
+        ? {
+            ok: provision.ok,
+            complete: provision.complete,
+            studioId: provision.studioId,
+            studioName: provision.studioName,
+            noStudio: provision.noStudio,
+            error: provision.error,
+          }
+        : null,
+    })
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e)
     res.status(500).json({ ok: false, error: message })
   }
+})
+
+app.post("/api/auth/provision", localhostOnly, async (req, res) => {
+  try {
+    const accessToken = String(req.body?.accessToken ?? req.body?.access_token ?? "").trim()
+    if (!accessToken) {
+      res.status(400).json({ ok: false, error: "accessToken is required" })
+      return
+    }
+    const provision = await provisionFromAccessToken(accessToken)
+    if (provision.ok) s3Manager = new S3Manager()
+    res.status(provision.ok ? 200 : provision.noStudio ? 404 : 500).json({
+      ok: provision.ok,
+      complete: provision.complete,
+      studioId: provision.studioId,
+      studioName: provision.studioName,
+      noStudio: provision.noStudio,
+      error: provision.error,
+      setupComplete: isSetupComplete(),
+    })
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e)
+    res.status(500).json({ ok: false, error: message })
+  }
+})
+
+app.post("/api/ui/refresh", localhostOnly, async (_req, res) => {
+  try {
+    const result = await refreshUiCache({ force: true })
+    res.json({ ok: true, ...result, ...getUiCacheStatus() })
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e)
+    res.status(500).json({ ok: false, error: message })
+  }
+})
+
+app.get("/api/ui/status", localhostOnly, (_req, res) => {
+  res.json({ ok: true, ...getUiCacheStatus() })
+})
+
+/** Handle ctrack:// deep links from the OS protocol handler. */
+app.post("/api/protocol/open", localhostOnly, (req, res) => {
+  const raw = String(req.body?.url ?? "").trim()
+  let action = "open"
+  let targetPath: string | null = null
+  try {
+    if (raw) {
+      const u = new URL(raw)
+      action = (u.hostname || u.pathname.replace(/^\/+/, "") || "open").toLowerCase()
+      targetPath = u.searchParams.get("path")
+    }
+  } catch {
+    /* ignore parse errors */
+  }
+  if (action === "publish" && targetPath) {
+    engineBus.emit("protocol-publish", { path: targetPath })
+  }
+  res.json({
+    ok: true,
+    action,
+    path: targetPath,
+    openUrl: `http://127.0.0.1:${PORT}/`,
+  })
 })
 
 app.post("/api/auth/refresh", localhostOnly, async (_req, res) => {
@@ -630,6 +740,51 @@ app.get("/api/storage/test", async (_req, res) => {
   try {
     const report = await s3Manager.testStorageConnections()
     res.json({ ok: true, ...report })
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e)
+    res.status(500).json({ ok: false, error: message })
+  }
+})
+
+app.post("/api/fs/reveal", localhostOnly, (req, res) => {
+  try {
+    const filePath = typeof req.body?.path === "string" ? req.body.path.trim() : ""
+    if (!filePath) {
+      res.status(400).json({ ok: false, error: "path is required" })
+      return
+    }
+    if (process.platform === "win32") {
+      spawn("explorer.exe", ["/select,", filePath], { detached: true, stdio: "ignore" }).unref()
+    } else if (process.platform === "darwin") {
+      spawn("open", ["-R", filePath], { detached: true, stdio: "ignore" }).unref()
+    } else {
+      spawn("xdg-open", [path.dirname(filePath)], { detached: true, stdio: "ignore" }).unref()
+    }
+    res.json({ ok: true })
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e)
+    res.status(500).json({ ok: false, error: message })
+  }
+})
+
+app.post("/api/rv/open", localhostOnly, (req, res) => {
+  try {
+    const rvExe = typeof req.body?.rvExe === "string" ? req.body.rvExe.trim() : ""
+    const mediaPath = typeof req.body?.path === "string" ? req.body.path.trim() : ""
+    const frameStart = typeof req.body?.frameStart === "number" ? req.body.frameStart : null
+    const frameEnd = typeof req.body?.frameEnd === "number" ? req.body.frameEnd : null
+    if (!mediaPath) {
+      res.status(400).json({ ok: false, error: "path is required" })
+      return
+    }
+    const baseName = mediaPath.replace(/\\/g, "/").split("/").pop() ?? mediaPath
+    const isVideoFile = /\.(mov|mp4|mxf|avi|mkv|webm|m4v|wmv|r3d|braw|mpe?g|mpg)$/i.test(baseName)
+    const range =
+      !isVideoFile && frameStart != null && frameEnd != null ? ` [${frameStart}-${frameEnd}]` : ""
+    const playTarget = `${mediaPath}${range}`
+    const exe = rvExe || (process.platform === "win32" ? "rv.exe" : "rv")
+    spawn(exe, ["-l", "-play", playTarget], { detached: true, stdio: "ignore" }).unref()
+    res.json({ ok: true })
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e)
     res.status(500).json({ ok: false, error: message })
@@ -1448,6 +1603,11 @@ function isRunAsNodeMainScript(): boolean {
 export function startEngine(): Promise<http.Server> {
   pythonManager.start()
   seedDefaultReviewTemplateIfEmpty()
+  // Refresh UI cache before mounting so first paint can use the latest web build.
+  void refreshUiCache().finally(() => {
+    /* mount already uses resolveActiveWebDistDir live */
+  })
+  startUiCacheLoop()
   mountLocalWebUi()
   void migratePlainCredentialsToDpapi(getCredentialsPath()).catch((e) => {
     console.warn("[ctrack-engine] credentials DPAPI migration skipped:", e)

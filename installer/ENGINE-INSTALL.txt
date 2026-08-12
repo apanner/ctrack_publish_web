@@ -19,10 +19,11 @@ Daily use
 ---------
 1. Tray starts at Windows login (and after install).
 2. Open CTrack from the tray or Start Menu → http://127.0.0.1:7777/ (same origin, no Chrome Allow prompt).
-3. Sign in once to pair the workstation.
-4. Updates download and install silently when the engine is idle and paired.
+3. Sign in once with Google — the engine pulls studio storage config from the cloud (no .env form).
+4. Web UI updates on the fly from the CDN cache; engine updates install silently when paired.
+5. The website can launch the app via ctrack://open (registered by the installer).
 
-The hosted Vercel site is optional. If you use it, Chrome may ask for local network access once.
+The hosted Vercel site is optional for coordinators. Prefer the local app for publishing.
 
 Configuration
 -------------

@@ -48,6 +48,13 @@ def health_ok(base: str = DEFAULT_BASE) -> bool:
         return False
 
 
+def refresh_ui_cache(base: str = DEFAULT_BASE) -> Dict[str, Any]:
+    data = _request("POST", "/api/ui/refresh", base=base, body={}, timeout=120.0)
+    if not data.get("ok"):
+        raise EngineApiError(data.get("error") or "UI refresh failed")
+    return data
+
+
 def get_settings(base: str = DEFAULT_BASE) -> Dict[str, Any]:
     data = _request("GET", "/api/engine/settings", base=base)
     if not data.get("ok"):

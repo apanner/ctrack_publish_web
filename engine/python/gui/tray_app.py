@@ -167,6 +167,20 @@ class TrayHost:
         """Open local engine UI (preferred) — avoids Chrome PNA on Vercel."""
         webbrowser.open(self.local_ui_url)
 
+    def _reload_ui(self) -> None:
+        """Fetch latest web UI into the local cache (on-the-fly updates)."""
+        try:
+            from gui.api import refresh_ui_cache
+
+            result = refresh_ui_cache()
+            ver = result.get("version") or "unknown"
+            if result.get("updated"):
+                self._notify("CTrack Engine", f"UI updated to v{ver}. Reopen CTrack to load it.")
+            else:
+                self._notify("CTrack Engine", f"UI already current (v{ver}).")
+        except Exception as exc:
+            self._notify("CTrack Engine", f"UI refresh failed: {exc}")
+
     def _ensure_autostart_default(self) -> None:
         """Enable Start at Windows login once so users do not hunt for the tray."""
         if is_launch_at_login(self.tray_bat):
@@ -258,6 +272,7 @@ class TrayHost:
         items.extend(
             [
                 pystray.MenuItem("Open CTrack", lambda _i, _m: self._open_web(), default=open_default),
+                pystray.MenuItem("Reload UI", lambda _i, _m: self._reload_ui()),
                 pystray.MenuItem("Open Engine console", lambda _i, _m: self._open_engine()),
                 pystray.MenuItem("Settings...", lambda _i, _m: self._open_settings()),
                 pystray.Menu.SEPARATOR,

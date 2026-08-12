@@ -104,7 +104,8 @@ export function FirstRunSetup({ engineBase, onFinished }: FirstRunSetupProps) {
         <CardHeader>
           <CardTitle className="text-2xl text-[#24E1B1]">Welcome — connect CTrack</CardTitle>
           <CardDescription className="text-gray-400">
-            One-time setup. Values are saved to your profile folder (no manual file copy). The local engine must be running.
+            Admin escape hatch (?setup=1). Artists normally get storage config after Google sign-in — no secrets to paste.
+            Values are saved to your profile folder. The local engine must be running.
           </CardDescription>
         </CardHeader>
         <CardContent>

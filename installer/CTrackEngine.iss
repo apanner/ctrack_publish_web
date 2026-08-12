@@ -54,7 +54,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 english.WelcomeLabel1=Welcome to the [name] Setup Wizard.%n%nThis installs the local publish engine for CTrack: transcoding, staging, job queue, object storage upload, and pipeline hooks aligned with review and delivery workflows common in VFX and episodic production.
 english.WelcomeLabel2=Click Next to continue.%n%nThis installer includes Node, portable Python, FFmpeg, OpenImageIO (oiiotool), and OCIO configs — ready for EXR review and MP4 publish without extra downloads.
 
-english.FinishedLabel=Setup has installed [name] on this workstation.%n%nThe engine starts in the system tray and opens at login by default. Use Start Menu → Open CTrack (or tray → Open CTrack) for the local app at http://127.0.0.1:7777 — no Chrome local-network prompt. Sign in once to pair this workstation.
+english.FinishedLabel=Setup has installed [name] on this workstation.%n%nThe engine starts in the system tray and opens at login by default. Use Start Menu → Open CTrack (or tray → Open CTrack) for the local app at http://127.0.0.1:7777 — no Chrome local-network prompt. Sign in once with Google; studio storage is provisioned automatically. The ctrack:// protocol is registered so the website can launch the local app.
 
 [Files]
 Source: "..\release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -66,10 +66,16 @@ Name: "firewall"; Description: "Re-apply Windows Firewall loopback rule for port
 [Registry]
 ; Start tray at Windows login (HKCU — matches Python tray toggle)
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "CTrackPublishEngine"; ValueData: """{app}\start-engine-tray.bat"""; Flags: uninsdeletevalue
+; ctrack:// protocol — website / Explorer can open the local gateway without Chrome PNA
+Root: HKCU; Subkey: "Software\Classes\ctrack"; ValueType: string; ValueName: ""; ValueData: "URL:CTrack Protocol"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\ctrack"; ValueType: string; ValueName: "URL Protocol"; ValueData: ""
+Root: HKCU; Subkey: "Software\Classes\ctrack\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\engine\assets\ctrack-tray.ico"
+Root: HKCU; Subkey: "Software\Classes\ctrack\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{sys}\wscript.exe"" //nologo ""{app}\handle-ctrack-protocol.vbs"" ""%1"""
 
 [Run]
 Filename: "{cmd}"; Parameters: "/C netsh advfirewall firewall add rule name=""CTrack Engine API (loopback 7777)"" dir=in action=allow protocol=TCP localip=127.0.0.1 localport=7777 profile=private,domain"; Flags: runhidden
 Filename: "{sys}\wscript.exe"; Parameters: "//nologo ""{app}\{#MyTrayVbs}"""; Description: "Start CTrack Engine in the system tray"; Flags: postinstall nowait runhidden
+Filename: "{cmd}"; Parameters: "/C timeout /t 4 /nobreak >nul & start http://127.0.0.1:7777/"; Description: "Open CTrack (local UI)"; Flags: postinstall nowait skipifsilent
 
 [Icons]
 Name: "{group}\Start CTrack Engine"; Filename: "{sys}\wscript.exe"; Parameters: "//nologo ""{app}\{#MyTrayVbs}"""; WorkingDir: "{app}"; IconFilename: "{app}\engine\assets\ctrack-tray.ico"

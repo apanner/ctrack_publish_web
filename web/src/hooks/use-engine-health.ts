@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
+import { DEFAULT_ENGINE_ORIGIN } from "@/lib/engine-base"
 import {
   buildEngineOfflineMessage,
   probeEngineConnection,
@@ -69,7 +70,7 @@ export function useEngineHealth(): EngineHealthState {
   return useMemo(() => {
     if (!probe) {
       return {
-        engineBase: "http://127.0.0.1:7777",
+        engineBase: DEFAULT_ENGINE_ORIGIN,
         isChecking: true,
         isOnline: false,
         offlineHelpText: null,

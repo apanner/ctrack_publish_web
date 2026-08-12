@@ -3,17 +3,12 @@ import App from "./App"
 import { FirstRunSetup } from "@/components/setup/FirstRunSetup"
 import { EngineConnectionGate } from "@/components/engine/EngineConnectionGate"
 import { LinkEnginePage } from "@/pages/LinkEnginePage"
-import { ENGINE_BASE, isLocalEngineOrigin } from "@/lib/engine-base"
+import { DEFAULT_ENGINE_ORIGIN, ENGINE_BASE, engineUrl, isLocalEngineOrigin } from "@/lib/engine-base"
 import { hasLocalNetworkAccessFlag, markLocalNetworkAccessGranted, probeEngineConnection } from "@/lib/engine-connection"
 import { initializeSupabase, supabase } from "@/lib/supabase"
 
 const START_ENGINE_HELP =
   "Run scripts\\start-engine-tray.vbs (or the Start CTrack Engine Tray shortcut), then retry."
-
-function engineUrl(path: string): string {
-  const base = ENGINE_BASE.replace(/\/+$/, "")
-  return `${base}${path.startsWith("/") ? path : `/${path}`}`
-}
 
 export function Root() {
   if (typeof window !== "undefined" && window.location.pathname.replace(/\/+$/, "") === "/link-engine") {
@@ -75,12 +70,17 @@ function RootApp() {
         })
         if (!stRes.ok) {
           throw new Error(
-            `Cannot reach engine at ${ENGINE_BASE || "http://127.0.0.1:7777"} (${stRes.status}). ${START_ENGINE_HELP}`
+            `Cannot reach engine at ${ENGINE_BASE || DEFAULT_ENGINE_ORIGIN} (${stRes.status}). ${START_ENGINE_HELP}`
           )
         }
         const st = (await stRes.json()) as { complete: boolean }
         if (cancelled) return
-        if (!st.complete) {
+        // Artist path: no secret form. Login provisions studio config from the cloud.
+        // FirstRunSetup remains only as an admin escape hatch via ?setup=1
+        const forceSetup =
+          typeof window !== "undefined" &&
+          new URLSearchParams(window.location.search).get("setup") === "1"
+        if (!st.complete && forceSetup) {
           setPhase("setup")
           return
         }
@@ -105,7 +105,7 @@ function RootApp() {
       } catch (e) {
         const msg =
           e instanceof Error && e.name === "TimeoutError"
-            ? `Engine did not respond within 15s at ${ENGINE_BASE || "http://127.0.0.1:7777"}. ${START_ENGINE_HELP}`
+            ? `Engine did not respond within 15s at ${ENGINE_BASE || DEFAULT_ENGINE_ORIGIN}. ${START_ENGINE_HELP}`
             : e instanceof Error
               ? e.message
               : String(e)
@@ -147,7 +147,7 @@ function RootApp() {
   if (phase === "setup") {
     return (
       <FirstRunSetup
-        engineBase={ENGINE_BASE || "http://127.0.0.1:7777"}
+        engineBase={ENGINE_BASE}
         onFinished={() => {
           void initializeSupabase().then((ok) => {
             if (ok) {

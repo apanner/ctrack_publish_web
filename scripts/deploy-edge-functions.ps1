@@ -10,7 +10,8 @@ param(
     "engine-pair-init",
     "engine-pair-complete",
     "engine-download",
-    "engine-releases-latest"
+    "engine-releases-latest",
+    "engine-provision"
   ),
   [switch]$Login
 )

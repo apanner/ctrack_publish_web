@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react"
 import { CheckCircle2, Circle, Download, Loader2, LogIn, PlugZap, ShieldAlert, User } from "lucide-react"
-import { ENGINE_BASE } from "@/lib/engine-base"
+import { ENGINE_BASE, DEFAULT_ENGINE_ORIGIN, displayEngineBase } from "@/lib/engine-base"
 import { useAuth } from "@/hooks/use-auth"
 import {
   buildEngineOfflineMessage,
@@ -154,7 +154,9 @@ export function EngineConnectionGate({ onConnected }: EngineConnectionGateProps)
       <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#06090d]/95 p-8 shadow-2xl">
         <div className="mb-6 text-center">
           <h1 className="text-xl font-semibold text-white">CTrack Publish</h1>
-          <p className="mt-1 text-sm text-gray-400">Sign in, then connect your local engine</p>
+          <p className="mt-1 text-sm text-gray-400">
+            Prefer the local app at {DEFAULT_ENGINE_ORIGIN}/ — no Chrome local-network prompt
+          </p>
         </div>
 
         <div className="mb-4 space-y-3">
@@ -184,10 +186,24 @@ export function EngineConnectionGate({ onConnected }: EngineConnectionGateProps)
               )
             }
             label={engineLabel}
-            detail={ENGINE_BASE || "http://127.0.0.1:7777"}
+            detail={displayEngineBase() || ENGINE_BASE || DEFAULT_ENGINE_ORIGIN}
             tone={engineTone}
           />
         </div>
+
+        <a
+          href="ctrack://open"
+          onClick={(e) => {
+            e.preventDefault()
+            window.location.href = "ctrack://open"
+            window.setTimeout(() => {
+              window.open(DEFAULT_ENGINE_ORIGIN + "/", "_blank", "noopener,noreferrer")
+            }, 500)
+          }}
+          className="mb-3 flex w-full items-center justify-center gap-2 rounded-lg bg-[#24E1B1] px-4 py-3 text-sm font-semibold text-[#041812] transition hover:bg-[#1FC99E]"
+        >
+          Open local CTrack
+        </a>
 
         {!hasSession ? (
           <button

@@ -2,6 +2,7 @@ import { ReactNode } from "react"
 import { useAuth } from "@/hooks/use-auth"
 import { LoadingOverlay } from "@/components/ui/spinner"
 import { LoginPage } from "@/components/auth/LoginPage"
+import { HostedGatewayBanner } from "@/components/engine/HostedGatewayBanner"
 
 interface AuthGuardProps {
   children: ReactNode
@@ -18,7 +19,14 @@ export function AuthGuard({ children }: AuthGuardProps) {
   }
 
   if (!hasSession) {
-    return <LoginPage />
+    return (
+      <div className="flex min-h-screen flex-col">
+        <HostedGatewayBanner />
+        <div className="flex-1">
+          <LoginPage />
+        </div>
+      </div>
+    )
   }
 
   if (!hasProfile) {

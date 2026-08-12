@@ -58,10 +58,12 @@ async function notifyShotPublishRecipients(params: {
     shotId: string;
     taskId?: string | null;
     versionId?: string | null;
+    elementId?: string | null;
     type: 'version_submitted' | 'element_published';
     granularType: 'my_version_created' | 'my_element_published';
     title: string;
     message: string;
+    metadata?: Record<string, unknown>;
     explicitRecipientIds?: string[];
 }): Promise<void> {
     const { data: { session } } = await supabase.auth.getSession();
@@ -75,7 +77,7 @@ async function notifyShotPublishRecipients(params: {
         .from('project_members')
         .select('user_id')
         .eq('project_id', params.projectId)
-        .in('role', ['supervisor', 'manager', 'production', 'admin']);
+        .in('role', ['supervisor', 'manager', 'production', 'admin', 'artist']);
     const { data: taskRows } = await supabase
         .from('shot_tasks')
         .select('assigned_to')
@@ -89,16 +91,16 @@ async function notifyShotPublishRecipients(params: {
         if (r.assigned_to) recipientIds.add(r.assigned_to);
     });
     const finalRecipientIds = Array.from(recipientIds);
-    if (!finalRecipientIds.length) return;
 
-    const { data: prefs } = await supabase
-        .from('notification_preferences')
-        .select('user_id, enabled')
-        .eq('notification_type', params.granularType)
-        .in('user_id', finalRecipientIds);
+    const { data: prefs } = finalRecipientIds.length
+        ? await supabase
+            .from('notification_preferences')
+            .select('user_id, enabled')
+            .eq('notification_type', params.granularType)
+            .in('user_id', finalRecipientIds)
+        : { data: [] as Array<{ user_id: string; enabled: boolean }> };
     const disabled = new Set((prefs || []).filter((p: { enabled: boolean }) => p.enabled === false).map((p: { user_id: string }) => p.user_id));
     const filteredRecipientIds = finalRecipientIds.filter((id) => !disabled.has(id));
-    if (!filteredRecipientIds.length) return;
 
     const payload = {
         p_type: params.type,
@@ -110,7 +112,9 @@ async function notifyShotPublishRecipients(params: {
         p_shot_id: params.shotId,
         p_task_id: params.taskId ?? null,
         p_version_id: params.versionId ?? null,
-        p_note_id: null
+        p_note_id: null,
+        p_element_id: params.elementId ?? null,
+        p_metadata: params.metadata ?? {},
     };
     const { error } = await supabase.rpc('rpc_notify_recipients', payload);
     if (!error) return;
@@ -829,6 +833,12 @@ export function usePublishQueue() {
                     video_path: mediaStoragePath,
                     thumbnail_url: thumbnailStoragePath,
                     exr_path: job.filePath,
+                    local_path: isInputVideoFile
+                        ? job.filePath
+                        : transcodeResult.output
+                          ? joinPathSegment(versionPath, versionFileName)
+                          : null,
+                    delivery_type: job.meta?.deliveryType ?? "WIP",
                     frame_start: resolvedFrameStart ?? null,
                     frame_end: resolvedFrameEnd ?? null,
                     status: 'Pending Review',
@@ -1143,6 +1153,13 @@ export function usePublishQueue() {
             let thumbS3Key: string | null = null;
             let webpS3Key: string | null = null;
 
+            const inferElementFormat = (storageKey: string, displayName: string): string | null => {
+                const source = storageKey || displayName;
+                const ext = source.split(".").pop()?.toUpperCase();
+                if (!ext || ext.length > 6) return null;
+                return ext;
+            };
+
             const isPlate = elementTypeVal === 'plate';
             let nextVersion: number;
             if (isPlate) {
@@ -1206,7 +1223,7 @@ export function usePublishQueue() {
             if (thumbUpload && thumbS3KeyTarget) {
                 if (thumbUpload.status !== 'error') {
                     thumbS3Key = thumbUpload.key;
-                    thumbnailS3Url = (thumbUpload as { url?: string }).url ?? null;
+                    thumbnailS3Url = thumbS3Key;
                     const thumbSize = (thumbUpload as { size?: number }).size ?? 0;
                     reportEntries.push({ name: 'thumbnail', s3Key: thumbS3KeyTarget, size: thumbSize, status: 'ok' });
                     reportTotalBytes += thumbSize;
@@ -1256,15 +1273,17 @@ export function usePublishQueue() {
                 stage: 'submit',
                 eventType: 'started'
             });
-            const { error: dbError } = await supabase.from('shot_elements').insert({
+            const elementDisplayName = isImageSequence ? elementBaseName : fileName;
+            const { data: insertedElement, error: dbError } = await supabase.from('shot_elements').insert({
                 shot_id: sId,
                 project_id: pId,
                 category: categoryVal,
                 element_type: elementTypeVal,
-                name: isImageSequence ? elementBaseName : fileName,
+                name: elementDisplayName,
                 description: elementNotesVal,
-                url: mediaUrl,
+                url: finalS3Key || mediaUrl,
                 thumbnail_url: thumbnailS3Url,
+                format: inferElementFormat(finalS3Key, mediaDisplayName),
                 version_number: nextVersion,
                 storage_path: finalS3Key,
                 exr_path: job.filePath,
@@ -1274,11 +1293,11 @@ export function usePublishQueue() {
                 metadata: {
                     s3_thumbnail_key: thumbS3Key,
                     s3_webp_key: webpS3Key,
-                    original_name: isImageSequence ? elementBaseName : fileName,
+                    original_name: elementDisplayName,
                     ...(originalSize > 0 && { sequence_total_bytes: originalSize })
                 },
                 created_by: user.id
-            });
+            }).select('id').single();
 
             if (dbError) {
                 console.error("Supabase Error (Element):", dbError);
@@ -1294,16 +1313,28 @@ export function usePublishQueue() {
                 }
             }
             try {
+                const actorName = profile?.full_name || user?.email || 'Someone';
+                const shotLabel = shotCode ?? 'SHOT';
+                const projectLabel = job.context?.projectCode ?? projectCode ?? null;
+                const notifyMessage = `${actorName} published ${elementDisplayName} on ${shotLabel}${projectLabel ? ` (${projectLabel})` : ''}`;
                 await notifyShotPublishRecipients({
                     actorId: user.id,
                     projectId: pId,
                     shotId: sId,
                     taskId: job.context?.taskId ?? null,
                     versionId: null,
+                    elementId: insertedElement?.id ?? null,
                     type: 'element_published',
                     granularType: 'my_element_published',
                     title: 'Element published',
-                    message: `${profile?.full_name || user?.email || 'Someone'} published element ${isImageSequence ? elementBaseName : fileName} for ${shotCode ?? 'SHOT'}`,
+                    message: notifyMessage,
+                    metadata: {
+                        actor_name: actorName,
+                        element_name: elementDisplayName,
+                        shot_code: shotLabel,
+                        project_code: projectLabel,
+                        action: 'published',
+                    },
                     explicitRecipientIds: job.meta?.notifyUserIds ?? []
                 });
                 addJobLog(jobId, "Notification dispatched for element publish.", {

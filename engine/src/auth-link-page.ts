@@ -164,7 +164,26 @@ export function renderAuthLinkPage(): string {
       showError(payload.error || "Engine pairing failed");
       return;
     }
-    showSuccess(payload.email || "");
+    var provision = payload.provision || null;
+    if (provision && provision.noStudio) {
+      title.textContent = "Signed in — studio needed";
+      title.className = "err";
+      message.textContent = provision.error || "Ask your TD to add you to a CTrack studio, then sign in again.";
+      message.className = "";
+      button.style.display = "none";
+      return;
+    }
+    if (provision && !provision.ok && !payload.setupComplete) {
+      title.textContent = "Signed in — config pending";
+      title.className = "err";
+      message.textContent = (provision.error || "Studio storage is not configured yet.") +
+        " Ask your TD to set studio engine config, then open CTrack again.";
+      message.className = "";
+      button.style.display = "none";
+      return;
+    }
+    var studioBit = provision && provision.studioName ? (" · " + provision.studioName) : "";
+    showSuccess((payload.email || "") + studioBit);
   }
 
   async function finishOAuthReturn() {

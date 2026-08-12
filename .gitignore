@@ -44,3 +44,7 @@ out/
 .vercel/
 .vercel/**
 ctrack_nuke/installer/output/
+
+# Supabase CLI local
+supabase/.temp/
+

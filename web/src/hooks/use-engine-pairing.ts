@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { supabase } from "@/lib/supabase"
-import { ENGINE_BASE } from "@/lib/engine-base"
+import { ENGINE_BASE, displayEngineBase } from "@/lib/engine-base"
 
 export interface EnginePairInitResponse {
   pairToken: string
@@ -29,10 +29,6 @@ function resolveSupabaseUrl(): string {
   if (fromEnv) return fromEnv
   const fromClient = (supabase as unknown as { supabaseUrl?: string }).supabaseUrl?.trim()
   return fromClient ?? ""
-}
-
-function displayEngineBase(): string {
-  return ENGINE_BASE.replace(/\/+$/, "") || "http://127.0.0.1:7777"
 }
 
 export async function initializePairingRequest(): Promise<EnginePairInitResponse> {

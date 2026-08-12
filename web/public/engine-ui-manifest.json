@@ -1,0 +1,16 @@
+{
+  "version": "0.1.3",
+  "builtAt": "2026-08-12T21:28:33.952Z",
+  "baseUrl": "https://ctrackpublishweb.vercel.app",
+  "files": [
+    "assets/index-BzWwxifZ.css",
+    "assets/index-CO8_LNJO.js",
+    "ctrack-icon.png",
+    "electron-vite.animate.svg",
+    "electron-vite.svg",
+    "favicon.png",
+    "index.html",
+    "site.webmanifest",
+    "vite.svg"
+  ]
+}

@@ -66,6 +66,8 @@ copy /Y "%~dp0start-engine-release-hidden.vbs" "%OUT%\start-engine-hidden.vbs" >
 copy /Y "%~dp0start-engine-tray.bat" "%OUT%\start-engine-tray.bat" >nul
 copy /Y "%~dp0start-engine-tray.vbs" "%OUT%\start-engine-tray.vbs" >nul
 echo [ctrack] Skipping legacy WPF tray scripts from release package.
+copy /Y "%~dp0handle-ctrack-protocol.bat" "%OUT%\handle-ctrack-protocol.bat" >nul
+copy /Y "%~dp0handle-ctrack-protocol.vbs" "%OUT%\handle-ctrack-protocol.vbs" >nul
 copy /Y "%~dp0open-tray-settings.bat" "%OUT%\open-tray-settings.bat" >nul
 copy /Y "%~dp0open-tray-settings.vbs" "%OUT%\open-tray-settings.vbs" >nul
 copy /Y "%~dp0open-tray-settings.ps1" "%OUT%\open-tray-settings.ps1" >nul

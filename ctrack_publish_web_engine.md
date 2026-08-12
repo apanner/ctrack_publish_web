@@ -4,6 +4,18 @@ A plain-language guide to how **ctrack_publish_web** and the **local engine** wo
 
 ---
 
+## After install (hassle-free)
+
+1. Tray starts at login and opens `http://127.0.0.1:7777/`
+2. Sign in with Google once on `/auth/link` (same origin)
+3. Engine calls `engine-provision` and writes studio storage to `%USERPROFILE%\.ctrack-engine\.env`
+4. Web UI refreshes from CDN via `engine-ui-manifest.json` (tray → Reload UI)
+5. Website uses `ctrack://open` — does not drive localhost from HTTPS
+
+Admin escape hatch for manual secrets: open `http://127.0.0.1:7777/?setup=1`
+
+---
+
 ## What you have
 
 | Piece | What it is | Where |

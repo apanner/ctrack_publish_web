@@ -10,6 +10,7 @@ import { StatusBar } from "./StatusBar"
 import { AppConsole } from "./AppConsole"
 import { motion, AnimatePresence } from "framer-motion"
 import { useOSNotifications } from "@/hooks/use-os-notifications"
+import { HostedGatewayBanner } from "@/components/engine/HostedGatewayBanner"
 import { EngineHealthProvider } from "@/context/engine-health-context"
 
 export function AppShell() {
@@ -18,7 +19,9 @@ export function AppShell() {
 
     return (
         <EngineHealthProvider>
-        <div className="relative flex h-screen w-full overflow-hidden bg-transparent p-2 font-sans text-white antialiased selection:bg-[#0096D6]/30">
+        <div className="relative flex h-screen w-full flex-col overflow-hidden bg-transparent font-sans text-white antialiased selection:bg-[#0096D6]/30">
+            <HostedGatewayBanner />
+            <div className="relative flex min-h-0 flex-1 overflow-hidden p-2">
             <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.032)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.025)_1px,transparent_1px)] bg-[size:36px_36px] opacity-[0.18]" />
             <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-white/[0.055] to-transparent" />
             <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} onNavigateToQueue={() => setActiveTab("queue")} />
@@ -45,6 +48,7 @@ export function AppShell() {
                 <AppConsole />
                 <StatusBar />
             </main>
+            </div>
         </div>
         </EngineHealthProvider>
     )

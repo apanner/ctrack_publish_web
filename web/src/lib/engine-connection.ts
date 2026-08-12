@@ -1,4 +1,4 @@
-import { ENGINE_BASE } from "@/lib/engine-base"
+import { DEFAULT_ENGINE_ORIGIN, ENGINE_BASE, displayEngineBase, engineUrl } from "@/lib/engine-base"
 
 export interface EngineHealthPayload {
   status?: string
@@ -52,15 +52,14 @@ export function buildEngineOfflineMessage(engineBase: string, error: string | nu
     return `${START_ENGINE_HINT} Expected engine at ${engineBase}.`
   }
   if (error.includes("Failed to fetch") || error.includes("NetworkError") || error.includes("aborted")) {
-    return `Chrome is blocking ${engineBase} from this website. Click "Connect local engine" on the setup screen and choose Allow when Chrome asks for local network access. (Do not use ping with a port — it only tests the IP, not the engine.)`
+    return `Chrome is blocking ${engineBase} from this website. Prefer Open CTrack (http://127.0.0.1:7777/) from the Start Menu — same-origin, no local-network prompt. Or click "Connect local engine" and Allow when Chrome asks.`
   }
   return `${START_ENGINE_HINT} ${error}`
 }
 
 export async function probeEngineConnection(timeoutMs = 5000): Promise<EngineProbeResult> {
-  const engineBase = ENGINE_BASE.replace(/\/+$/, "")
-  const displayBase = engineBase || "http://127.0.0.1:7777"
-  const healthUrl = `${engineBase}/health`
+  const displayBase = displayEngineBase() || DEFAULT_ENGINE_ORIGIN
+  const healthUrl = engineUrl("/health")
   const controller = new AbortController()
   const timer = window.setTimeout(() => controller.abort(), timeoutMs)
   try {
@@ -113,7 +112,7 @@ export async function probeEngineConnection(timeoutMs = 5000): Promise<EnginePro
 
     let runtime: EngineRuntimePayload | null = null
     try {
-      const statusRes = await fetch(`${engineBase}/api/engine/status`, {
+      const statusRes = await fetch(engineUrl("/api/engine/status"), {
         cache: "no-store",
         signal: controller.signal,
       })
@@ -151,3 +150,5 @@ export async function probeEngineConnection(timeoutMs = 5000): Promise<EnginePro
     window.clearTimeout(timer)
   }
 }
+
+export { ENGINE_BASE }
