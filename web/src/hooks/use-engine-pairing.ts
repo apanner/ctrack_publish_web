@@ -20,6 +20,10 @@ interface UseEnginePairingOptions {
   refetchIntervalMs?: number
 }
 
+const PAIR_INIT_TIMEOUT_MS = 15_000
+const PAIR_COMPLETE_TIMEOUT_MS = 12_000
+const PAIR_STATUS_TIMEOUT_MS = 5_000
+
 function resolveSupabaseUrl(): string {
   const fromEnv = import.meta.env.VITE_SUPABASE_URL?.trim()
   if (fromEnv) return fromEnv
@@ -27,7 +31,11 @@ function resolveSupabaseUrl(): string {
   return fromClient ?? ""
 }
 
-async function initializePairingRequest(): Promise<EnginePairInitResponse> {
+function displayEngineBase(): string {
+  return ENGINE_BASE.replace(/\/+$/, "") || "http://127.0.0.1:7777"
+}
+
+export async function initializePairingRequest(): Promise<EnginePairInitResponse> {
   const supabaseUrl = resolveSupabaseUrl()
   if (!supabaseUrl) {
     throw new Error("Missing VITE_SUPABASE_URL for pairing.")
@@ -37,16 +45,31 @@ async function initializePairingRequest(): Promise<EnginePairInitResponse> {
   if (!accessToken) {
     throw new Error("You must be signed in before pairing this workstation.")
   }
-  const response = await fetch(`${supabaseUrl}/functions/v1/engine-pair-init`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({}),
-  })
+  let response: Response
+  try {
+    response = await fetch(`${supabaseUrl}/functions/v1/engine-pair-init`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({}),
+      signal: AbortSignal.timeout(PAIR_INIT_TIMEOUT_MS),
+    })
+  } catch (err) {
+    const aborted =
+      err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError")
+    throw new Error(
+      aborted
+        ? "Pairing init timed out. Check your network and that the engine-pair-init edge function is deployed."
+        : err instanceof Error
+          ? err.message
+          : "Failed to initialize pairing."
+    )
+  }
   if (!response.ok) {
-    throw new Error(`Failed to initialize pairing (${response.status})`)
+    const detail = await response.text().catch(() => "")
+    throw new Error(detail || `Failed to initialize pairing (${response.status})`)
   }
   const payload = (await response.json()) as {
     pairToken?: string
@@ -67,17 +90,22 @@ async function initializePairingRequest(): Promise<EnginePairInitResponse> {
   }
 }
 
-async function completePairingRequest(pairToken: string): Promise<unknown> {
+export async function completePairingRequest(pairToken: string): Promise<unknown> {
   let response: Response
   try {
     response = await fetch(`${ENGINE_BASE}/api/auth/pair`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ pairToken }),
+      signal: AbortSignal.timeout(PAIR_COMPLETE_TIMEOUT_MS),
     })
-  } catch {
+  } catch (err) {
+    const aborted =
+      err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError")
     throw new Error(
-      `Cannot reach CTrack Engine at ${ENGINE_BASE}. Keep the engine tray running on this PC, then try again.`
+      aborted
+        ? `Engine at ${displayEngineBase()} did not respond. Keep the tray running, allow local network access, then retry.`
+        : `Cannot reach CTrack Engine at ${displayEngineBase()}. Keep the engine tray running on this PC, then try again.`
     )
   }
   if (!response.ok) {
@@ -87,27 +115,36 @@ async function completePairingRequest(pairToken: string): Promise<unknown> {
   return response.json()
 }
 
+export function buildPairRedirectUrl(pairToken: string): string {
+  const engineBase = displayEngineBase()
+  return `${engineBase}/api/auth/pair-redirect?pairToken=${encodeURIComponent(pairToken)}`
+}
+
 async function fetchPairStatus(): Promise<EnginePairStatus | null> {
-  const response = await fetch(`${ENGINE_BASE}/api/auth/status`, {
-    headers: { "Content-Type": "application/json" },
-  })
-  if (!response.ok) {
+  try {
+    const response = await fetch(`${ENGINE_BASE}/api/auth/status`, {
+      headers: { "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(PAIR_STATUS_TIMEOUT_MS),
+      cache: "no-store",
+    })
+    if (!response.ok) return null
+    const payload = (await response.json()) as {
+      paired?: boolean
+      userId?: string
+      user_id?: string
+      email?: string
+      userEmail?: string
+      deviceId?: string
+      device_id?: string
+    }
+    return {
+      paired: Boolean(payload.paired),
+      userId: payload.userId ?? payload.user_id,
+      email: payload.email ?? payload.userEmail,
+      deviceId: payload.deviceId ?? payload.device_id,
+    }
+  } catch {
     return null
-  }
-  const payload = (await response.json()) as {
-    paired?: boolean
-    userId?: string
-    user_id?: string
-    email?: string
-    userEmail?: string
-    deviceId?: string
-    device_id?: string
-  }
-  return {
-    paired: Boolean(payload.paired),
-    userId: payload.userId ?? payload.user_id,
-    email: payload.email ?? payload.userEmail,
-    deviceId: payload.deviceId ?? payload.device_id,
   }
 }
 
@@ -120,6 +157,7 @@ export function useEnginePairing(options?: UseEnginePairingOptions) {
     queryFn: fetchPairStatus,
     enabled,
     refetchInterval: enabled ? (options?.refetchIntervalMs ?? 15_000) : false,
+    retry: false,
   })
 
   const initializePairingMutation = useMutation({

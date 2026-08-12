@@ -1,9 +1,15 @@
 import { useEffect, useRef, useState } from "react"
 import { Download, Loader2 } from "lucide-react"
 import { initializeSupabase, supabase } from "@/lib/supabase"
-import { useEnginePairing } from "@/hooks/use-engine-pairing"
+import {
+  buildPairRedirectUrl,
+  completePairingRequest,
+  initializePairingRequest,
+  useEnginePairing,
+} from "@/hooks/use-engine-pairing"
 import { useEngineRelease } from "@/hooks/use-engine-release"
 import { ENGINE_BASE } from "@/lib/engine-ipc-shim"
+import { markLocalNetworkAccessGranted } from "@/lib/engine-connection"
 import {
   openInstallerDownload,
   probeEngineHealth,
@@ -12,7 +18,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 
-type LinkPhase = "login" | "install" | "linking" | "ready" | "error"
+type LinkPhase = "boot" | "login" | "checking" | "install" | "linking" | "ready" | "error"
 
 function readOAuthCode(): string | null {
   if (typeof window === "undefined") return null
@@ -29,29 +35,36 @@ function PageShell({ children }: { children: React.ReactNode }) {
 
 export function LinkEnginePage() {
   const codeHandledRef = useRef(false)
-  const linkingStartedRef = useRef(false)
+  const pairAttemptRef = useRef(0)
   const [supabaseReady, setSupabaseReady] = useState(false)
   const [hasSession, setHasSession] = useState(false)
   const [sessionReady, setSessionReady] = useState(false)
-  const [phase, setPhase] = useState<LinkPhase>(() => (readOAuthCode() ? "linking" : "login"))
+  const [phase, setPhase] = useState<LinkPhase>("boot")
+  const [statusText, setStatusText] = useState("Starting…")
   const [error, setError] = useState<string | null>(null)
   const [oauthBusy, setOauthBusy] = useState(() => !!readOAuthCode())
   const [engineOnline, setEngineOnline] = useState<boolean | null>(null)
   const [localEngineVersion, setLocalEngineVersion] = useState<string | null>(null)
   const [isDownloadBusy, setIsDownloadBusy] = useState(false)
   const [downloadError, setDownloadError] = useState<string | null>(null)
-  const { pairStatusQuery, initializePairingMutation } = useEnginePairing({
-    enabled: hasSession,
+  const [pairNonce, setPairNonce] = useState(0)
+  const [accountEmail, setAccountEmail] = useState<string | null>(null)
+
+  const { pairStatusQuery } = useEnginePairing({
+    enabled: hasSession && engineOnline === true,
+    refetchIntervalMs: 5_000,
   })
   const latestReleaseQuery = useEngineRelease({ enabled: hasSession })
   const latestVersion = latestReleaseQuery.data?.version?.trim() ?? ""
+  const isPaired = Boolean(pairStatusQuery.data?.paired)
 
-  // Boot: real client → listeners → exchange ?code= (never exchange on placeholder)
+  // 1) Auth boot — real client before any OAuth exchange
   useEffect(() => {
     let cancelled = false
     let unsubscribe: (() => void) | null = null
 
     void (async () => {
+      setStatusText("Connecting to CTrack…")
       const ok = await initializeSupabase()
       if (cancelled) return
       if (!ok) {
@@ -72,22 +85,26 @@ export function LinkEnginePage() {
         if (cancelled) return
         setHasSession(Boolean(session?.user))
         setSessionReady(true)
+        const email = session?.user?.email ?? null
+        if (email) setAccountEmail(email)
       })
       unsubscribe = () => subscription.unsubscribe()
 
       const code = readOAuthCode()
       if (code && !codeHandledRef.current) {
         codeHandledRef.current = true
+        setStatusText("Completing Google sign-in…")
         const url = new URL(window.location.href)
         url.searchParams.delete("code")
         url.searchParams.delete("state")
         window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`)
         try {
-          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+          const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
           if (cancelled) return
           if (exchangeError) throw exchangeError
           setHasSession(true)
           setSessionReady(true)
+          setAccountEmail(data.session?.user?.email ?? null)
         } catch (err) {
           if (cancelled) return
           setError(err instanceof Error ? err.message : "Sign in failed")
@@ -103,7 +120,9 @@ export function LinkEnginePage() {
       if (cancelled) return
       setHasSession(Boolean(data.session?.user))
       setSessionReady(true)
+      setAccountEmail(data.session?.user?.email ?? null)
       setOauthBusy(false)
+      if (!data.session?.user) setPhase("login")
     })()
 
     return () => {
@@ -112,48 +131,68 @@ export function LinkEnginePage() {
     }
   }, [])
 
+  // 2) Probe local engine only after session is ready
   useEffect(() => {
     if (!hasSession || !sessionReady || oauthBusy) return
     let cancelled = false
+    setPhase("checking")
+    setStatusText("Looking for CTrack Engine on this PC…")
+    setEngineOnline(null)
     void (async () => {
       const health = await probeEngineHealth(ENGINE_BASE)
       if (cancelled) return
       setEngineOnline(health.online)
       setLocalEngineVersion(health.version ?? null)
-      if (!health.online) {
-        linkingStartedRef.current = false
-        setPhase("install")
-      }
+      if (health.online) markLocalNetworkAccessGranted()
+      else setPhase("install")
     })()
     return () => {
       cancelled = true
     }
-  }, [hasSession, sessionReady, oauthBusy])
+  }, [hasSession, sessionReady, oauthBusy, pairNonce])
 
+  // 3) Pair once engine is online — no permanent lock (StrictMode-safe via attempt id)
   useEffect(() => {
     if (!hasSession || !sessionReady || oauthBusy) return
-    if (engineOnline === false) return
-    if (pairStatusQuery.data?.paired) {
+    if (engineOnline !== true) return
+    if (pairStatusQuery.isLoading) {
+      setPhase("checking")
+      setStatusText("Checking whether this PC is already linked…")
+      return
+    }
+    if (isPaired) {
       setPhase("ready")
       return
     }
-    if (linkingStartedRef.current) return
+
     let cancelled = false
-    linkingStartedRef.current = true
+    const attemptId = ++pairAttemptRef.current
     setPhase("linking")
     setError(null)
+    setStatusText("Creating a secure link…")
+
     void (async () => {
       try {
-        const init = await initializePairingMutation.mutateAsync()
-        if (cancelled) return
-        const engineBase = ENGINE_BASE.replace(/\/+$/, "")
-        const redirectUrl = `${engineBase}/api/auth/pair-redirect?pairToken=${encodeURIComponent(init.pairToken)}`
-        window.location.replace(redirectUrl)
+        const init = await initializePairingRequest()
+        if (cancelled || attemptId !== pairAttemptRef.current) return
+
+        setStatusText("Connecting engine to your account…")
+        try {
+          await completePairingRequest(init.pairToken)
+          if (cancelled || attemptId !== pairAttemptRef.current) return
+          markLocalNetworkAccessGranted()
+          setPhase("ready")
+          return
+        } catch {
+          if (cancelled || attemptId !== pairAttemptRef.current) return
+          setStatusText("Opening local engine to finish linking…")
+          window.location.replace(buildPairRedirectUrl(init.pairToken))
+        }
       } catch (err) {
-        if (cancelled) return
-        linkingStartedRef.current = false
+        if (cancelled || attemptId !== pairAttemptRef.current) return
         const message = err instanceof Error ? err.message : "Could not link this workstation"
         const health = await probeEngineHealth(ENGINE_BASE)
+        if (cancelled || attemptId !== pairAttemptRef.current) return
         if (!health.online) {
           setEngineOnline(false)
           setPhase("install")
@@ -164,20 +203,15 @@ export function LinkEnginePage() {
         setPhase("error")
       }
     })()
+
     return () => {
       cancelled = true
     }
-  }, [
-    hasSession,
-    sessionReady,
-    oauthBusy,
-    engineOnline,
-    pairStatusQuery.data?.paired,
-    initializePairingMutation,
-  ])
+  }, [hasSession, sessionReady, oauthBusy, engineOnline, pairStatusQuery.isLoading, isPaired, pairNonce])
 
   const handleGoogleSignIn = async () => {
     setError(null)
+    setStatusText("Opening Google…")
     const ok = await initializeSupabase()
     if (!ok) {
       setError(
@@ -210,18 +244,13 @@ export function LinkEnginePage() {
     }
   }
 
-  const handleRetryLinking = async () => {
-    linkingStartedRef.current = false
+  const handleRetryLinking = () => {
     setError(null)
     setDownloadError(null)
-    const health = await probeEngineHealth(ENGINE_BASE)
-    setEngineOnline(health.online)
-    setLocalEngineVersion(health.version ?? null)
-    if (!health.online) {
-      setPhase("install")
-      return
-    }
-    setPhase("linking")
+    setEngineOnline(null)
+    setPhase("checking")
+    setStatusText("Retrying…")
+    setPairNonce((n) => n + 1)
   }
 
   if (phase === "error") {
@@ -239,7 +268,7 @@ export function LinkEnginePage() {
           </Button>
         ) : (
           <>
-            <Button type="button" onClick={() => void handleRetryLinking()} className="bg-[#0096D6] hover:bg-[#0096D6]/90">
+            <Button type="button" onClick={handleRetryLinking} className="bg-[#0096D6] hover:bg-[#0096D6]/90">
               Try again
             </Button>
             <Button
@@ -259,25 +288,24 @@ export function LinkEnginePage() {
     )
   }
 
-  if (!supabaseReady || !sessionReady || oauthBusy) {
+  if (!supabaseReady || !sessionReady || oauthBusy || phase === "boot") {
     return (
       <PageShell>
         <Spinner className="h-8 w-8 text-[#24E1B1]" />
-        <p className="text-gray-300">Completing sign in…</p>
+        <p className="text-gray-300">{statusText || "Completing sign in…"}</p>
       </PageShell>
     )
   }
 
   if (phase === "ready") {
+    const email = pairStatusQuery.data?.email ?? accountEmail
     return (
       <PageShell>
         <p className="text-2xl font-semibold text-[#24E1B1]">Engine linked</p>
         <p className="max-w-sm text-center text-gray-300">
           This workstation is connected. Close this tab — the engine tray will show Ready.
         </p>
-        {pairStatusQuery.data?.email && (
-          <p className="text-sm text-gray-500">Signed in as {pairStatusQuery.data.email}</p>
-        )}
+        {email && <p className="text-sm text-gray-500">Signed in as {email}</p>}
       </PageShell>
     )
   }
@@ -289,7 +317,7 @@ export function LinkEnginePage() {
           <h1 className="text-2xl font-bold text-[#24E1B1]">Install CTrack Engine</h1>
           <p className="text-sm text-gray-400">
             We could not reach the engine on this PC. Download and run the latest installer, then start the CTrack
-            Engine Tray from the Start Menu.
+            Engine Tray from the Start Menu. Allow local network access if Chrome asks.
           </p>
           {latestVersion && (
             <p className="rounded border border-cyan-400/30 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-200">
@@ -313,7 +341,7 @@ export function LinkEnginePage() {
           )}
           Download engine installer
         </Button>
-        <Button type="button" variant="outline" onClick={() => void handleRetryLinking()} className="border-white/20 text-white">
+        <Button type="button" variant="outline" onClick={handleRetryLinking} className="border-white/20 text-white">
           I installed it — retry linking
         </Button>
         {downloadError && <p className="max-w-md text-center text-sm text-red-300">{downloadError}</p>}
@@ -322,14 +350,17 @@ export function LinkEnginePage() {
     )
   }
 
-  if (phase === "linking") {
+  if (phase === "checking" || phase === "linking") {
     return (
       <PageShell>
         <Spinner className="h-8 w-8 text-[#24E1B1]" />
-        <p className="text-gray-300">Linking engine to your account…</p>
+        <p className="text-gray-300">{statusText}</p>
         <p className="max-w-sm text-center text-xs text-gray-500">
-          Keep CTrack Engine running. Your browser will open the local engine to finish linking.
+          Keep CTrack Engine running on this PC. If Chrome asks for local network access, choose Allow.
         </p>
+        <Button type="button" variant="outline" onClick={handleRetryLinking} className="border-white/20 text-white">
+          Cancel / retry
+        </Button>
       </PageShell>
     )
   }
