@@ -108,7 +108,9 @@ npm run clean:all
 
 Production URL: **https://ctrackpublishweb.vercel.app**
 
-Supabase Auth → Redirect URLs (same project as ctrack_v0): `https://ctrackpublishweb.vercel.app/`, `https://ctrackpublishweb.vercel.app/link-engine`, plus local Vite origins if needed.
+Supabase Auth → Redirect URLs (same project as ctrack_v0): `https://ctrackpublishweb.vercel.app/`, `https://ctrackpublishweb.vercel.app/link-engine`, `http://127.0.0.1:7777/auth/link` (tray Sign in — preferred), plus local Vite origins if needed.
+
+**Sign in without Chrome prompts:** tray → Sign in opens `http://127.0.0.1:7777/auth/link` (same-origin). Optional: run [`scripts/allow-chrome-local-network.bat`](scripts/allow-chrome-local-network.bat) as Administrator if you use the Vercel UI and Chrome asks for local network access.
 
 ### GitHub (first push)
 

@@ -26,13 +26,15 @@ func Run(opts Options) {
 	if hosted == "" {
 		hosted = defaultHostedWeb
 	}
-	linkURL := hosted + "/link-engine"
+	// Local auth page is same-origin with the engine — no Chrome local-network prompt.
+	_ = hosted
+	linkURL := localUI + "/auth/link"
 
 	systray.Run(func() {
 		systray.SetTitle("CTrack Engine")
 		systray.SetTooltip("CTrack Publish Engine")
 		mOpen := systray.AddMenuItem("Open CTrack", "Open local publish UI")
-		mSignIn := systray.AddMenuItem("Sign in to CTrack...", "Open browser pairing")
+		mSignIn := systray.AddMenuItem("Sign in to CTrack...", "Open local browser pairing")
 		systray.AddSeparator()
 		mQuit := systray.AddMenuItem("Quit", "Stop engine and exit")
 

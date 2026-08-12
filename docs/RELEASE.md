@@ -54,7 +54,9 @@ Same Supabase project as ctrack_v0. Add **all** of these under Authentication �
 - `https://ctrackpublishweb.vercel.app/link-engine`
 - `http://localhost:5173/` (dev)
 - `http://127.0.0.1:5173/` (dev, if you open Vite that way)
-- `http://127.0.0.1:7777/auth/link` (optional — local engine OAuth page)
+- `http://127.0.0.1:7777/auth/link` (**required** — tray Sign in uses this; no Chrome local-network prompt)
+
+**Tip:** Prefer tray → **Sign in** (local `/auth/link`). If you use the Vercel UI and Chrome asks for local network access, run `scripts/allow-chrome-local-network.bat` as Administrator once, then restart Chrome.
 
 ctrack_v0 keeps its own redirect (`…/auth/callback`). Google Cloud OAuth client only needs the shared Supabase callback: `https://<project-ref>.supabase.co/auth/v1/callback`.
 

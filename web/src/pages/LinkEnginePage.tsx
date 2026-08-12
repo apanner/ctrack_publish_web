@@ -131,7 +131,26 @@ export function LinkEnginePage() {
     }
   }, [])
 
-  // 2) Probe local engine only after session is ready
+  // 2) Prefer local same-origin auth (no Chrome local-network prompt).
+  // Do not rely on fetch-probe from Vercel — Chrome may block it even when the engine is up.
+  useEffect(() => {
+    if (!sessionReady || oauthBusy) return
+    if (hasSession) return
+    if (typeof window === "undefined") return
+    const isHosted =
+      window.location.hostname !== "127.0.0.1" &&
+      window.location.hostname !== "localhost"
+    if (!isHosted) {
+      setPhase("login")
+      return
+    }
+    setPhase("checking")
+    setStatusText("Opening local engine sign-in…")
+    // Top-level navigation to loopback does not need the Local Network Access permission.
+    window.location.replace("http://127.0.0.1:7777/auth/link")
+  }, [hasSession, sessionReady, oauthBusy])
+
+  // 3) Probe local engine only after session is ready on this origin
   useEffect(() => {
     if (!hasSession || !sessionReady || oauthBusy) return
     let cancelled = false
@@ -151,7 +170,7 @@ export function LinkEnginePage() {
     }
   }, [hasSession, sessionReady, oauthBusy, pairNonce])
 
-  // 3) Pair once engine is online — no permanent lock (StrictMode-safe via attempt id)
+  // 4) Pair once engine is online — no permanent lock (StrictMode-safe via attempt id)
   useEffect(() => {
     if (!hasSession || !sessionReady || oauthBusy) return
     if (engineOnline !== true) return
@@ -317,7 +336,8 @@ export function LinkEnginePage() {
           <h1 className="text-2xl font-bold text-[#24E1B1]">Install CTrack Engine</h1>
           <p className="text-sm text-gray-400">
             We could not reach the engine on this PC. Download and run the latest installer, then start the CTrack
-            Engine Tray from the Start Menu. Allow local network access if Chrome asks.
+            Engine Tray from the Start Menu. Sign in from the tray — it opens the local page
+            (http://127.0.0.1:7777/auth/link) and does not need a Chrome permission prompt.
           </p>
           {latestVersion && (
             <p className="rounded border border-cyan-400/30 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-200">
@@ -344,6 +364,14 @@ export function LinkEnginePage() {
         <Button type="button" variant="outline" onClick={handleRetryLinking} className="border-white/20 text-white">
           I installed it — retry linking
         </Button>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => window.location.assign("http://127.0.0.1:7777/auth/link")}
+          className="border-white/20 text-white"
+        >
+          Open local sign-in (no Chrome prompt)
+        </Button>
         {downloadError && <p className="max-w-md text-center text-sm text-red-300">{downloadError}</p>}
         {error && <p className="max-w-md text-center text-sm text-amber-200">{error}</p>}
       </PageShell>
@@ -356,7 +384,8 @@ export function LinkEnginePage() {
         <Spinner className="h-8 w-8 text-[#24E1B1]" />
         <p className="text-gray-300">{statusText}</p>
         <p className="max-w-sm text-center text-xs text-gray-500">
-          Keep CTrack Engine running on this PC. If Chrome asks for local network access, choose Allow.
+          Prefer tray → Sign in (opens local http://127.0.0.1:7777/auth/link). If you publish from the Vercel site and
+          Chrome asks for local network access, run scripts\allow-chrome-local-network.bat as Administrator once.
         </p>
         <Button type="button" variant="outline" onClick={handleRetryLinking} className="border-white/20 text-white">
           Cancel / retry
