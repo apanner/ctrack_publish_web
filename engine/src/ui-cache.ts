@@ -43,10 +43,39 @@ export function resolveBundledWebDistDir(): string | null {
   return null
 }
 
+/** True when index.html exists and every referenced asset is a real file (not SPA HTML). */
+export function isUsableWebDist(dir: string): boolean {
+  const indexPath = path.join(dir, "index.html")
+  if (!fs.existsSync(indexPath)) return false
+  let html: string
+  try {
+    html = fs.readFileSync(indexPath, "utf-8")
+  } catch {
+    return false
+  }
+  const refs = [...html.matchAll(/\b(?:src|href)="\/([^"]+)"/g)].map((m) => m[1])
+  for (const rel of refs) {
+    if (!rel || rel.startsWith("http")) continue
+    const filePath = path.join(dir, rel)
+    if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) return false
+    if (rel.endsWith(".js")) {
+      const size = fs.statSync(filePath).size
+      if (size < 50_000) return false
+      try {
+        const head = fs.readFileSync(filePath, { encoding: "utf-8" }).slice(0, 64).trimStart()
+        if (head.startsWith("<!") || head.startsWith("<html")) return false
+      } catch {
+        return false
+      }
+    }
+  }
+  return true
+}
+
 /** Prefer fresh UI cache; fall back to installer-baked web/dist. */
 export function resolveActiveWebDistDir(): string | null {
   const cached = currentDistPath()
-  if (fs.existsSync(path.join(cached, "index.html"))) return cached
+  if (isUsableWebDist(cached)) return cached
   return resolveBundledWebDistDir()
 }
 
@@ -140,8 +169,8 @@ async function downloadFileTree(manifest: UiManifest, destDir: string): Promise<
     fs.mkdirSync(path.dirname(target), { recursive: true })
     await downloadToFile(`${base}/${clean}`, target)
   }
-  if (!fs.existsSync(path.join(staging, "index.html"))) {
-    throw new Error("Downloaded UI is missing index.html")
+  if (!isUsableWebDist(staging)) {
+    throw new Error("Downloaded UI failed integrity check (missing/corrupt assets)")
   }
   fs.rmSync(destDir, { recursive: true, force: true })
   fs.renameSync(staging, destDir)
@@ -168,8 +197,14 @@ export async function refreshUiCache(options: { force?: boolean } = {}): Promise
   }
 
   const current = readCachedVersion()
-  if (!options.force && current === manifest.version && fs.existsSync(path.join(currentDistPath(), "index.html"))) {
+  if (!options.force && current === manifest.version && isUsableWebDist(currentDistPath())) {
     return { updated: false, version: current, source: "cache" }
+  }
+
+  // Drop a corrupt cache so we never prefer broken HTML-as-JS over bundled UI.
+  if (fs.existsSync(path.join(currentDistPath(), "index.html")) && !isUsableWebDist(currentDistPath())) {
+    console.warn("[ui-cache] Removing corrupt UI cache")
+    fs.rmSync(currentDistPath(), { recursive: true, force: true })
   }
 
   const dest = currentDistPath()
@@ -186,6 +221,9 @@ export async function refreshUiCache(options: { force?: boolean } = {}): Promise
       }
     } else {
       await downloadFileTree(manifest, dest)
+    }
+    if (!isUsableWebDist(dest)) {
+      throw new Error("UI cache update produced an unusable dist")
     }
     fs.writeFileSync(currentVersionPath(), `${manifest.version}\n`, "utf-8")
     console.log(`[ui-cache] Updated local UI to v${manifest.version}`)

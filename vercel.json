@@ -3,5 +3,10 @@
   "installCommand": "CTRACK_SKIP_POSTINSTALL_RUNTIME=1 npm ci --prefix web",
   "buildCommand": "npm run build --prefix web",
   "outputDirectory": "web/dist",
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "rewrites": [
+    {
+      "source": "/((?!assets/|engine-ui-manifest\\.json|.*\\..*).*)",
+      "destination": "/index.html"
+    }
+  ]
 }

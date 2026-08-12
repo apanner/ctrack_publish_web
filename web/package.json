@@ -5,7 +5,7 @@
     "type":  "module",
     "scripts":  {
                     "dev":  "vite",
-                    "build":  "vite build",
+                    "build":  "vite build && node ../scripts/write-ui-manifest.mjs",
                     "preview":  "vite preview",
                     "lint":  "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
                 },

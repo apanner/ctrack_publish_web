@@ -38,6 +38,11 @@ def _request(
         raise EngineApiError(f"HTTP {exc.code}: {detail}") from exc
     except urllib.error.URLError as exc:
         raise EngineApiError(str(exc.reason)) from exc
+    except TimeoutError as exc:
+        # socket timeout during read is not always wrapped as URLError
+        raise EngineApiError(str(exc) or "timed out") from exc
+    except OSError as exc:
+        raise EngineApiError(str(exc)) from exc
 
 
 def health_ok(base: str = DEFAULT_BASE) -> bool:
@@ -169,13 +174,13 @@ def get_login_url(base: str = DEFAULT_BASE, install_root: str | None = None) -> 
 
 def engine_supports_auth(base: str = DEFAULT_BASE) -> bool:
     try:
-        data = _request("GET", "/api/auth/status", base=base, timeout=3.0)
+        data = _request("GET", "/api/auth/status", base=base, timeout=8.0)
         return "paired" in data
     except EngineApiError as exc:
         if "404" in str(exc):
             return False
     try:
-        data = _request("GET", "/api", base=base, timeout=3.0)
+        data = _request("GET", "/api", base=base, timeout=8.0)
         routes = data.get("routes")
         if isinstance(routes, list):
             return any(
