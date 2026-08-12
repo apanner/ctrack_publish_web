@@ -21,9 +21,12 @@ function resolveSupabaseUrl(): string {
   return fromClient ?? ""
 }
 
+const RELEASE_RPC_NAMES = ["rpc_engine_releases_latest", "engine_releases_latest"] as const
+
 async function fetchLatestRelease(channel: string): Promise<EngineRelease | null> {
-  const { data, error } = await supabase.rpc("engine_releases_latest", { p_channel: channel })
-  if (!error && data) {
+  for (const rpcName of RELEASE_RPC_NAMES) {
+    const { data, error } = await supabase.rpc(rpcName, { p_channel: channel })
+    if (error || !data) continue
     const row = Array.isArray(data) ? data[0] : data
     if (row?.version) {
       return {
@@ -57,7 +60,9 @@ async function fetchLatestRelease(channel: string): Promise<EngineRelease | null
     version?: string
     channel?: string
     publishedAt?: string
+    published_at?: string
     releaseNotes?: string
+    release_notes?: string
     breaking?: boolean
     release?: EngineRelease
   }
@@ -68,8 +73,8 @@ async function fetchLatestRelease(channel: string): Promise<EngineRelease | null
   return {
     version: release.version,
     channel: release.channel ?? channel,
-    publishedAt: release.publishedAt,
-    releaseNotes: release.releaseNotes,
+    publishedAt: release.publishedAt ?? payload.published_at,
+    releaseNotes: release.releaseNotes ?? payload.release_notes,
     breaking: release.breaking,
   }
 }

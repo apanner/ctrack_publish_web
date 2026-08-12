@@ -21,6 +21,7 @@ export interface InstallerDownloadResult {
 
 const DEFAULT_GITHUB_REPO = "apanner/ctrack_publish_web"
 const DEFAULT_INSTALLER_ASSET = "CTrackPublishEngine-Setup.exe"
+const RELEASE_RPC_NAMES = ["rpc_engine_releases_latest", "engine_releases_latest"] as const
 
 function resolveSupabaseUrl(): string {
   const fromEnv = import.meta.env.VITE_SUPABASE_URL?.trim()
@@ -56,25 +57,42 @@ export function buildGithubReleasePageUrl(version = "latest"): string {
   return `https://github.com/${repo}/releases/tag/${tag}`
 }
 
-export async function fetchLatestEngineRelease(channel = "stable"): Promise<EngineReleaseInfo | null> {
-  const { data, error } = await supabase.rpc("engine_releases_latest", { p_channel: channel })
-  if (!error && data) {
-    const row = Array.isArray(data) ? data[0] : data
-    if (row?.version) {
-      return {
-        version: String(row.version),
-        channel: row.channel ? String(row.channel) : channel,
-        publishedAt: row.published_at ? String(row.published_at) : undefined,
-        releaseNotes: row.release_notes ? String(row.release_notes) : undefined,
-        breaking: Boolean(row.breaking),
-      }
-    }
+function normalizeReleaseRow(row: Record<string, unknown>, channel: string): EngineReleaseInfo | null {
+  const version = row.version ? String(row.version) : ""
+  if (!version) return null
+  return {
+    version,
+    channel: row.channel ? String(row.channel) : channel,
+    publishedAt: row.published_at
+      ? String(row.published_at)
+      : row.publishedAt
+        ? String(row.publishedAt)
+        : undefined,
+    releaseNotes: row.release_notes
+      ? String(row.release_notes)
+      : row.releaseNotes
+        ? String(row.releaseNotes)
+        : undefined,
+    breaking: Boolean(row.breaking),
   }
+}
+
+export async function fetchLatestEngineRelease(channel = "stable"): Promise<EngineReleaseInfo | null> {
+  for (const rpcName of RELEASE_RPC_NAMES) {
+    const { data, error } = await supabase.rpc(rpcName, { p_channel: channel })
+    if (error || !data) continue
+    const row = (Array.isArray(data) ? data[0] : data) as Record<string, unknown> | null
+    if (!row) continue
+    const release = normalizeReleaseRow(row, channel)
+    if (release) return release
+  }
+
   const supabaseUrl = resolveSupabaseUrl()
   if (!supabaseUrl) return null
   const { data: sessionData } = await supabase.auth.getSession()
   const accessToken = sessionData.session?.access_token
   if (!accessToken) return null
+
   const response = await fetch(
     `${supabaseUrl}/functions/v1/engine-releases-latest?channel=${encodeURIComponent(channel)}`,
     {
@@ -88,23 +106,8 @@ export async function fetchLatestEngineRelease(channel = "stable"): Promise<Engi
     if (response.status === 404) return null
     throw new Error(`Failed to fetch latest release (${response.status})`)
   }
-  const payload = (await response.json()) as {
-    version?: string
-    channel?: string
-    published_at?: string
-    publishedAt?: string
-    release_notes?: string
-    releaseNotes?: string
-    breaking?: boolean
-  }
-  if (!payload.version) return null
-  return {
-    version: payload.version,
-    channel: payload.channel ?? channel,
-    publishedAt: payload.publishedAt ?? payload.published_at,
-    releaseNotes: payload.releaseNotes ?? payload.release_notes,
-    breaking: Boolean(payload.breaking),
-  }
+  const payload = (await response.json()) as Record<string, unknown>
+  return normalizeReleaseRow(payload, channel)
 }
 
 async function requestEdgeInstallerDownloadUrl(
@@ -165,22 +168,37 @@ async function requestEdgeInstallerDownloadUrl(
   }
 }
 
+/**
+ * Resolve installer URL for the web UI.
+ * Prefer public GitHub Releases (always latest / specific tag) so first-time
+ * install works without sign-in and without popup-blocker issues on edge hops.
+ * When signed in, still try edge first for audit + private-repo support.
+ */
 export async function requestEngineInstallerDownloadUrl(
   channel = "stable",
   version = "latest"
 ): Promise<InstallerDownloadResult> {
-  try {
-    return await requestEdgeInstallerDownloadUrl(channel, version)
-  } catch (edgeError) {
-    const latest = await fetchLatestEngineRelease(channel).catch(() => null)
-    const resolvedVersion = latest?.version ?? (version === "latest" ? "latest" : version)
-    return {
-      downloadUrl: buildGithubInstallerDownloadUrl(resolvedVersion),
-      version: resolvedVersion === "latest" ? (latest?.version ?? "latest") : resolvedVersion,
-      source: "github",
-      sha256: undefined,
-      sizeBytes: undefined,
+  const latest = await fetchLatestEngineRelease(channel).catch(() => null)
+  const resolvedVersion =
+    version !== "latest" ? version : latest?.version?.trim() || "latest"
+
+  const { data: sessionData } = await supabase.auth.getSession()
+  const hasSession = Boolean(sessionData.session?.access_token)
+
+  if (hasSession) {
+    try {
+      return await requestEdgeInstallerDownloadUrl(channel, resolvedVersion === "latest" ? "latest" : resolvedVersion)
+    } catch (edgeError) {
+      console.warn("[engine-installer] edge download failed, falling back to GitHub:", edgeError)
     }
+  }
+
+  return {
+    downloadUrl: buildGithubInstallerDownloadUrl(resolvedVersion),
+    version: resolvedVersion === "latest" ? (latest?.version ?? "latest") : resolvedVersion,
+    source: "github",
+    sha256: undefined,
+    sizeBytes: undefined,
   }
 }
 
@@ -201,6 +219,14 @@ export async function probeEngineHealth(
   }
 }
 
+/** Prefer anchor navigation — window.open is often blocked after async work. */
 export function openInstallerDownload(downloadUrl: string): void {
-  window.open(downloadUrl, "_blank", "noopener,noreferrer")
+  const anchor = document.createElement("a")
+  anchor.href = downloadUrl
+  anchor.target = "_blank"
+  anchor.rel = "noopener noreferrer"
+  anchor.style.display = "none"
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
 }

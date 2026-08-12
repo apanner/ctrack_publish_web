@@ -11,6 +11,7 @@ import { useEngineRelease } from "@/hooks/use-engine-release"
 import { ENGINE_BASE } from "@/lib/engine-ipc-shim"
 import { markLocalNetworkAccessGranted } from "@/lib/engine-connection"
 import {
+  buildGithubInstallerDownloadUrl,
   openInstallerDownload,
   probeEngineHealth,
   requestEngineInstallerDownloadUrl,
@@ -54,8 +55,9 @@ export function LinkEnginePage() {
     enabled: hasSession && engineOnline === true,
     refetchIntervalMs: 5_000,
   })
-  const latestReleaseQuery = useEngineRelease({ enabled: hasSession })
+  const latestReleaseQuery = useEngineRelease({ enabled: true })
   const latestVersion = latestReleaseQuery.data?.version?.trim() ?? ""
+  const githubLatestUrl = buildGithubInstallerDownloadUrl(latestVersion || "latest")
   const isPaired = Boolean(pairStatusQuery.data?.paired)
 
   // 1) Auth boot — real client before any OAuth exchange
@@ -257,6 +259,8 @@ export function LinkEnginePage() {
       const result = await requestEngineInstallerDownloadUrl()
       openInstallerDownload(result.downloadUrl)
     } catch (err) {
+      // Hard fallback to public latest release asset
+      openInstallerDownload(buildGithubInstallerDownloadUrl(latestVersion || "latest"))
       setDownloadError(err instanceof Error ? err.message : "Download failed")
     } finally {
       setIsDownloadBusy(false)
@@ -339,27 +343,38 @@ export function LinkEnginePage() {
             Engine Tray from the Start Menu. Sign in from the tray — it opens the local page
             (http://127.0.0.1:7777/auth/link) and does not need a Chrome permission prompt.
           </p>
-          {latestVersion && (
+          {latestVersion ? (
             <p className="rounded border border-cyan-400/30 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-200">
               Latest published engine: <span className="font-semibold">v{latestVersion}</span>
+            </p>
+          ) : (
+            <p className="rounded border border-cyan-400/30 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-200">
+              Latest published engine: <span className="font-semibold">GitHub latest</span>
             </p>
           )}
           {localEngineVersion && (
             <p className="text-xs text-gray-500">Detected local version before offline: v{localEngineVersion}</p>
           )}
         </div>
+        <a
+          href={githubLatestUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex min-w-[220px] items-center justify-center rounded-md bg-[#0096D6] px-4 py-2 text-sm font-medium text-white hover:bg-[#0096D6]/90"
+          aria-label="Download latest CTrack Engine installer"
+        >
+          <Download className="mr-2 h-4 w-4" />
+          Download engine installer
+        </a>
         <Button
           type="button"
+          variant="outline"
           onClick={() => void handleDownloadInstaller()}
           disabled={isDownloadBusy}
-          className="min-w-[220px] bg-[#0096D6] hover:bg-[#0096D6]/90"
+          className="border-white/20 text-white"
         >
-          {isDownloadBusy ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <Download className="mr-2 h-4 w-4" />
-          )}
-          Download engine installer
+          {isDownloadBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+          {isDownloadBusy ? "Resolving…" : "Retry account download"}
         </Button>
         <Button type="button" variant="outline" onClick={handleRetryLinking} className="border-white/20 text-white">
           I installed it — retry linking

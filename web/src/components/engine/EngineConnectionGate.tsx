@@ -71,7 +71,7 @@ export function EngineConnectionGate({ onConnected }: EngineConnectionGateProps)
   const [isDownloadBusy, setIsDownloadBusy] = useState(false)
   const [signInBusy, setSignInBusy] = useState(false)
   const [signInError, setSignInError] = useState<string | null>(null)
-  const latestReleaseQuery = useEngineRelease({ enabled: hasSession })
+  const latestReleaseQuery = useEngineRelease({ enabled: true })
   const latestVersion = latestReleaseQuery.data?.version?.trim() ?? ""
 
   const accountEmail = user?.email ?? user?.user_metadata?.email ?? null
@@ -126,6 +126,8 @@ export function EngineConnectionGate({ onConnected }: EngineConnectionGateProps)
       setIsDownloadBusy(false)
     }
   }
+
+  const githubLatestUrl = buildGithubInstallerDownloadUrl(latestVersion || "latest")
 
   const engineLabel =
     engineStatus === "checking"
@@ -238,20 +240,28 @@ export function EngineConnectionGate({ onConnected }: EngineConnectionGateProps)
           <p className="mt-3 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-gray-400">{detail}</p>
         )}
 
-        <details className="mt-6 text-xs text-gray-500">
+        <details className="mt-6 text-xs text-gray-500" open>
           <summary className="cursor-pointer text-gray-400 hover:text-gray-300">Need the engine installer?</summary>
           <div className="mt-3 space-y-2">
-            {latestVersion && <p>Latest version: v{latestVersion}</p>}
+            <p>Latest version: {latestVersion ? `v${latestVersion}` : "resolving…"}</p>
+            <a
+              href={githubLatestUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 text-cyan-300 hover:text-cyan-200"
+              aria-label="Download latest CTrack Engine installer"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Download installer
+            </a>
             <button
               type="button"
               onClick={() => void handleDownloadInstaller()}
-              disabled={isDownloadBusy || !hasSession}
-              className="inline-flex items-center gap-2 text-cyan-300 hover:text-cyan-200 disabled:opacity-50"
+              disabled={isDownloadBusy}
+              className="block text-left text-gray-500 underline-offset-2 hover:text-gray-300 hover:underline disabled:opacity-50"
             >
-              {isDownloadBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-              Download installer
+              {isDownloadBusy ? "Resolving signed link…" : "Use account download (signed)"}
             </button>
-            {!hasSession && <p className="text-gray-500">Sign in first to download via your account.</p>}
           </div>
         </details>
       </div>
