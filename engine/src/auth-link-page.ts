@@ -1,4 +1,5 @@
 import fs from "node:fs"
+import os from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { pairDevice, readEmailFromAccessToken, syncAccountEmail } from "./auth-store.js"
@@ -27,11 +28,23 @@ function authLinkUrl(): string {
 }
 
 function supabaseUrl(): string {
-  return readEnv("SUPABASE_URL", readEnv("VITE_SUPABASE_URL"))
+  return readEnv("SUPABASE_URL") || readEnv("VITE_SUPABASE_URL")
 }
 
 function supabaseAnonKey(): string {
-  return readEnv("VITE_SUPABASE_ANON_KEY")
+  return readEnv("SUPABASE_ANON_KEY") || readEnv("VITE_SUPABASE_ANON_KEY")
+}
+
+function missingSupabaseConfigMessage(): string {
+  const userEnv = path.join(os.homedir(), ".ctrack-engine", ".env")
+  const engineEnv = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", ".env")
+  return (
+    `<h1 class="err">Configuration error</h1>` +
+    `<p>Supabase is not configured on the engine.</p>` +
+    `<p class="muted">Add <code>VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_ANON_KEY</code> ` +
+    `(same project as ctrack_v0) to <code>${escapeHtml(userEnv)}</code> ` +
+    `or <code>${escapeHtml(path.resolve(engineEnv))}</code>, then restart CTrack Engine Tray.</p>`
+  )
 }
 
 function escapeHtml(value: string): string {
@@ -90,10 +103,7 @@ export function renderAuthLinkPage(): string {
   const key = supabaseAnonKey()
   const linkUrl = authLinkUrl()
   if (!url || !key) {
-    return pageShell(
-      "CTrack Engine — Sign in",
-      `<h1 class="err">Configuration error</h1><p>Supabase is not configured on the engine.</p>`
-    )
+    return pageShell("CTrack Engine — Sign in", missingSupabaseConfigMessage())
   }
   return pageShell(
     "CTrack Engine — Sign in",
