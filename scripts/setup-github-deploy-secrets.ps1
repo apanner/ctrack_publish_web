@@ -22,6 +22,15 @@ $secretMap = [ordered]@{
   SUPABASE_ACCESS_TOKEN = $env:SUPABASE_ACCESS_TOKEN
   SUPABASE_URL = $env:SUPABASE_URL
   SUPABASE_SERVICE_ROLE_KEY = $env:SUPABASE_SERVICE_ROLE_KEY
+  VITE_SUPABASE_URL = $(if ($env:VITE_SUPABASE_URL) { $env:VITE_SUPABASE_URL } else { $env:SUPABASE_URL })
+  VITE_SUPABASE_ANON_KEY = $env:VITE_SUPABASE_ANON_KEY
+}
+
+if (-not [string]::IsNullOrWhiteSpace($env:CTRACK_WEB_URL)) {
+  $secretMap["CTRACK_WEB_URL"] = $env:CTRACK_WEB_URL
+}
+if (-not [string]::IsNullOrWhiteSpace($env:CTRACK_AUTH_CALLBACK_URL)) {
+  $secretMap["CTRACK_AUTH_CALLBACK_URL"] = $env:CTRACK_AUTH_CALLBACK_URL
 }
 
 $githubReleaseToken = $env:GITHUB_RELEASE_TOKEN
@@ -36,7 +45,7 @@ if (-not [string]::IsNullOrWhiteSpace($githubReleaseToken)) {
 }
 
 $missing = @()
-$required = @("SUPABASE_ACCESS_TOKEN", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY")
+$required = @("SUPABASE_ACCESS_TOKEN", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "VITE_SUPABASE_ANON_KEY")
 foreach ($key in $required) {
   if ([string]::IsNullOrWhiteSpace([string]$secretMap[$key])) {
     $missing += $key
@@ -44,7 +53,7 @@ foreach ($key in $required) {
 }
 
 if ($missing.Count -gt 0) {
-  throw ("Missing in .env / .env.deploy: " + ($missing -join ", ") + ". Copy .env.deploy.example and fill values.")
+  throw ("Missing in .env / .env.deploy: " + ($missing -join ", ") + ". Need VITE_SUPABASE_ANON_KEY to bake engine/.env into the installer.")
 }
 
 $repo = gh repo view --json nameWithOwner -q .nameWithOwner

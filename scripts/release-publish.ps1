@@ -142,11 +142,40 @@ if ($releaseVersion -notmatch "^\d+\.\d+\.\d+$") {
 }
 
 if (-not $SkipBuild) {
-  Write-Host "`[release-publish`] Building engine installer..."
-  & (Join-Path $repoRoot "scripts\build-installer.bat")
+  Write-Host "`[release-publish`] Writing bundled engine .env from secrets..."
+  $bundleDir = if (-not [string]::IsNullOrWhiteSpace($env:RUNNER_TEMP)) {
+    $env:RUNNER_TEMP
+  } else {
+    Join-Path $repoRoot ".release"
+  }
+  if (-not (Test-Path -LiteralPath $bundleDir)) {
+    New-Item -ItemType Directory -Path $bundleDir -Force | Out-Null
+  }
+  $bundleEnvPath = Join-Path $bundleDir "ctrack-engine-bundle.env"
+  $includeStorage = ([Environment]::GetEnvironmentVariable("CTRACK_BUNDLE_STORAGE") -match '^(1|true|yes)$')
+  & (Join-Path $repoRoot "scripts\write-engine-bundle-env.ps1") -OutputPath $bundleEnvPath -IncludeStorage:$includeStorage
+  if (-not (Test-Path -LiteralPath $bundleEnvPath)) {
+    throw "Bundled engine env was not written: $bundleEnvPath"
+  }
+
+  $env:CTRACK_BUNDLE_ENV = "1"
+  $env:CTRACK_BUNDLE_ENV_FILE = $bundleEnvPath
+
+  Write-Host "`[release-publish`] Building engine installer (with bundled .env)..."
+  & (Join-Path $repoRoot "scripts\build-installer.bat") "/bundle-env"
   if ($LASTEXITCODE -ne 0) {
     throw "Engine installer build failed."
   }
+
+  $bundledInRelease = Join-Path $repoRoot "release\engine\.env"
+  if (-not (Test-Path -LiteralPath $bundledInRelease)) {
+    throw "Release payload missing release\engine\.env — bundling failed."
+  }
+  $bundleText = Get-Content -LiteralPath $bundledInRelease -Raw
+  if ($bundleText -notmatch "VITE_SUPABASE_URL\s*=" -or $bundleText -notmatch "VITE_SUPABASE_ANON_KEY\s*=") {
+    throw "release\engine\.env is missing VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY"
+  }
+  Write-Host "`[release-publish`] Verified release\engine\.env contains Supabase keys."
 
   Write-Host "`[release-publish`] Building Nuke installer..."
   & (Join-Path $nukeRoot "installer\build-installer.bat")

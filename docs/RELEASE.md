@@ -28,9 +28,15 @@ Required GitHub secrets (engine release only — **no Linux runners**):
 | `SUPABASE_ACCESS_TOKEN` | Engine release | Supabase account token (`sbp_...`) |
 | `SUPABASE_URL` | Engine release | Project URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | Engine release | service_role key |
+| `VITE_SUPABASE_URL` | **Baked into installer `.env`** | Same as ctrack_v0 `NEXT_PUBLIC_SUPABASE_URL` |
+| `VITE_SUPABASE_ANON_KEY` | **Baked into installer `.env`** | Same as ctrack_v0 `NEXT_PUBLIC_SUPABASE_ANON_KEY` |
 | `CTRACK_GH_TOKEN` | Private release assets (optional) | GitHub PAT with `repo` |
 
+Optional: set `CTRACK_BUNDLE_STORAGE=1` plus AWS/MinIO secrets to bake storage credentials into the installer (facility-only).
+
 > **Never commit** `.env`, `.env.deploy`, or `.vercel/`. They are gitignored.
+
+CI always runs `write-engine-bundle-env.ps1` and builds with `/bundle-env`, so a fresh install has Supabase keys and `/auth/link` works without hand-copying `.env`.
 
 ### 2. Vercel project (web — no GitHub Actions)
 

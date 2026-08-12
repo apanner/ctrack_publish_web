@@ -40,6 +40,22 @@ jobs:
       SUPABASE_PROJECT_REF: czwfeqheduofviockrab
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      # Baked into installer release\engine\.env so /auth/link works out of the box
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || secrets.SUPABASE_URL }}
+      VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+      CTRACK_WEB_URL: ${{ secrets.CTRACK_WEB_URL || 'https://ctrackpublishweb.vercel.app' }}
+      CTRACK_AUTH_CALLBACK_URL: ${{ secrets.CTRACK_AUTH_CALLBACK_URL || 'http://127.0.0.1:7777/auth/link' }}
+      CTRACK_BUNDLE_STORAGE: ${{ secrets.CTRACK_BUNDLE_STORAGE || '0' }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      AWS_S3_BUCKET_NAME: ${{ secrets.AWS_S3_BUCKET_NAME }}
+      STORAGE_PROVIDER: ${{ secrets.STORAGE_PROVIDER }}
+      HYBRID_STORAGE_PRIMARY_ENDPOINT: ${{ secrets.HYBRID_STORAGE_PRIMARY_ENDPOINT }}
+      HYBRID_STORAGE_PRIMARY_ACCESS_KEY: ${{ secrets.HYBRID_STORAGE_PRIMARY_ACCESS_KEY }}
+      HYBRID_STORAGE_PRIMARY_SECRET_KEY: ${{ secrets.HYBRID_STORAGE_PRIMARY_SECRET_KEY }}
+      HYBRID_STORAGE_PRIMARY_BUCKET: ${{ secrets.HYBRID_STORAGE_PRIMARY_BUCKET }}
+      HYBRID_STORAGE_PRIMARY_REGION: ${{ secrets.HYBRID_STORAGE_PRIMARY_REGION }}
       GITHUB_TOKEN: ${{ secrets.CTRACK_GH_TOKEN || github.token }}
       GITHUB_RELEASE_TOKEN: ${{ secrets.CTRACK_GH_TOKEN || github.token }}
       GITHUB_REPOSITORY: ${{ github.repository }}
@@ -49,6 +65,17 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Require Supabase anon key for bundled .env
+        shell: powershell
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:VITE_SUPABASE_URL)) {
+            throw "Missing secret VITE_SUPABASE_URL (or SUPABASE_URL)"
+          }
+          if ([string]::IsNullOrWhiteSpace($env:VITE_SUPABASE_ANON_KEY)) {
+            throw "Missing secret VITE_SUPABASE_ANON_KEY — required to bake engine/.env into the installer"
+          }
+          Write-Host "Supabase URL ok; anon key length=$($env:VITE_SUPABASE_ANON_KEY.Length)"
 
       - name: Setup Go
         uses: actions/setup-go@v5
