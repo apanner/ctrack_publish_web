@@ -7,6 +7,8 @@ export interface TraySettingsFile {
   webUrl: string
   launchAtLogin: boolean
   notifyOnMissingTools: boolean
+  /** When true (default), paired engines download + silent-install updates automatically. */
+  autoDownloadAndUpdate: boolean
   pollIntervalSec: number
 }
 
@@ -23,6 +25,7 @@ export function loadTraySettings(): TraySettingsFile {
     webUrl: process.env.CTRACK_WEB_URL?.trim() || DEFAULT_WEB,
     launchAtLogin: false,
     notifyOnMissingTools: true,
+    autoDownloadAndUpdate: true,
     pollIntervalSec: 8,
   }
   if (!fs.existsSync(target)) return defaults
@@ -33,6 +36,7 @@ export function loadTraySettings(): TraySettingsFile {
       webUrl: typeof raw.webUrl === "string" && raw.webUrl.trim() ? raw.webUrl.trim() : defaults.webUrl,
       launchAtLogin: !!raw.launchAtLogin,
       notifyOnMissingTools: raw.notifyOnMissingTools !== false,
+      autoDownloadAndUpdate: raw.autoDownloadAndUpdate !== false,
       pollIntervalSec:
         typeof raw.pollIntervalSec === "number" && raw.pollIntervalSec >= 3 && raw.pollIntervalSec <= 120
           ? raw.pollIntervalSec

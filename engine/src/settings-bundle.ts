@@ -22,6 +22,7 @@ export interface TraySettingsPatch {
   webUrl?: string
   launchAtLogin?: boolean
   notifyOnMissingTools?: boolean
+  autoDownloadAndUpdate?: boolean
   pollIntervalSec?: number
 }
 
@@ -88,6 +89,7 @@ export async function patchSettingsBundle(
       webUrl: patch.tray.webUrl?.trim() ? patch.tray.webUrl.trim() : current.webUrl,
       launchAtLogin: patch.tray.launchAtLogin ?? current.launchAtLogin,
       notifyOnMissingTools: patch.tray.notifyOnMissingTools ?? current.notifyOnMissingTools,
+      autoDownloadAndUpdate: patch.tray.autoDownloadAndUpdate ?? current.autoDownloadAndUpdate,
       pollIntervalSec:
         typeof patch.tray.pollIntervalSec === "number"
           ? Math.min(120, Math.max(3, patch.tray.pollIntervalSec))

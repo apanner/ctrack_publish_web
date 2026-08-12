@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import ctypes
+import json
 import os
 import subprocess
 import sys
@@ -264,6 +265,11 @@ class TrayHost:
                 pystray.MenuItem("Restart engine", lambda _i, _m: self._restart()),
                 pystray.MenuItem("Check for updates", lambda _i, _m: self._start_check_updates()),
                 pystray.MenuItem(
+                    "Auto-download updates",
+                    self._toggle_auto_update,
+                    checked=self._auto_update_checked,
+                ),
+                pystray.MenuItem(
                     "Install update now",
                     lambda _i, _m: self._start_install_update(),
                     enabled=self._is_install_enabled,
@@ -273,6 +279,45 @@ class TrayHost:
             ]
         )
         return pystray.Menu(*items)
+
+    def _auto_update_settings_path(self) -> Path:
+        return Path(os.environ.get("USERPROFILE", str(Path.home()))) / ".ctrack-engine" / "tray-settings.json"
+
+    def _read_auto_update_enabled(self) -> bool:
+        path = self._auto_update_settings_path()
+        if not path.is_file():
+            return True
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            return data.get("autoDownloadAndUpdate", True) is not False
+        except Exception:
+            return True
+
+    def _write_auto_update_enabled(self, enabled: bool) -> None:
+        path = self._auto_update_settings_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        data: dict = {}
+        if path.is_file():
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+            except Exception:
+                data = {}
+        data["autoDownloadAndUpdate"] = bool(enabled)
+        if "version" not in data:
+            data["version"] = 1
+        path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+
+    def _auto_update_checked(self, _item: object) -> bool:
+        return self._read_auto_update_enabled()
+
+    def _toggle_auto_update(self, _icon: object, _item: object) -> None:
+        enabled = not self._read_auto_update_enabled()
+        self._write_auto_update_enabled(enabled)
+        self._notify(
+            "CTrack Engine",
+            "Auto-download updates enabled." if enabled else "Auto-download updates disabled.",
+        )
+        self._refresh_menu()
 
     def _startup_login_checked(self, _item: object) -> bool:
         return is_launch_at_login(self.tray_bat)
@@ -328,12 +373,12 @@ class TrayHost:
                 self._set_pending_update(pending)
             version = str(result.get("remoteVersion") or "new")
             if manual:
-                self._notify("CTrack update available", f"Version {version} — installing…")
+                self._notify("CTrack update available", f"Version {version} - installing...")
                 self._download_and_apply_update()
                 return
-            # Silent auto-update when paired and idle (no active publish jobs).
-            if self._is_paired() and self._engine_is_idle():
-                self._notify("CTrack update", f"Installing v{version} in the background…")
+            # Silent auto-update when enabled, paired, and idle.
+            if self._read_auto_update_enabled() and self._is_paired() and self._engine_is_idle():
+                self._notify("CTrack update", f"Installing v{version} in the background...")
                 self._download_and_apply_update()
             else:
                 self._notify("CTrack update available", f"Version {version} is ready (Install update now).")

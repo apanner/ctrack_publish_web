@@ -37,6 +37,7 @@ UninstallDisplayIcon={app}\engine\assets\ctrack-tray.ico
 
 ArchitecturesInstallIn64BitMode=x64
 PrivilegesRequired=lowest
+CloseApplications=yes
 SetupMutex=Global\CTrackPublishEngine_Setup_{#MyAppVersion}
 
 VersionInfoVersion={#MyAppVersion}.0
@@ -68,7 +69,7 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: 
 
 [Run]
 Filename: "{cmd}"; Parameters: "/C netsh advfirewall firewall add rule name=""CTrack Engine API (loopback 7777)"" dir=in action=allow protocol=TCP localip=127.0.0.1 localport=7777 profile=private,domain"; Flags: runhidden
-Filename: "{sys}\wscript.exe"; Parameters: "//nologo ""{app}\{#MyTrayVbs}"""; Description: "Start CTrack Engine in the system tray"; Flags: postinstall nowait skipifsilent
+Filename: "{sys}\wscript.exe"; Parameters: "//nologo ""{app}\{#MyTrayVbs}"""; Description: "Start CTrack Engine in the system tray"; Flags: postinstall nowait runhidden
 
 [Icons]
 Name: "{group}\Start CTrack Engine"; Filename: "{sys}\wscript.exe"; Parameters: "//nologo ""{app}\{#MyTrayVbs}"""; WorkingDir: "{app}"; IconFilename: "{app}\engine\assets\ctrack-tray.ico"

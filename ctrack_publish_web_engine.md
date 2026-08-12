@@ -56,6 +56,20 @@ In Supabase → Authentication → URL Configuration → Redirect URLs, include:
 
 ---
 
+## Updates (no reinstall needed)
+
+When the workstation is **signed in / paired**:
+
+1. Engine checks GitHub `latest.json` (or Supabase `engine_releases`) on a schedule (~4h) and on tray **Check for updates**.
+2. If a newer version exists, it **downloads** the installer (authenticated via `engine-download`).
+3. It runs Inno **silent upgrade** into the same install folder (`/SILENT /FORCECLOSEAPPLICATIONS`) and **restarts the tray**.
+
+Toggle: tray menu **Auto-download updates** (on by default), or Settings → General → “Auto-download and install engine updates”.
+
+Force off with env: `CTRACK_AUTO_UPDATE=0`.
+
+---
+
 ## Normal day-to-day workflow
 
 ```text

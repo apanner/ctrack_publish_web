@@ -65,7 +65,13 @@ export interface ApplyUpdateResult {
 }
 
 const MANIFEST_RPC_NAMES = ["rpc_get_engine_manifest_url", "rpc_engine_manifest_url", "rpc_latest_engine_manifest_url"]
-const DOWNLOAD_FLAGS = ["/SILENT", "/CLOSEAPPLICATIONS", "/SUPPRESSMSGBOXES"]
+const DOWNLOAD_FLAGS = [
+  "/SILENT",
+  "/CLOSEAPPLICATIONS",
+  "/FORCECLOSEAPPLICATIONS",
+  "/SUPPRESSMSGBOXES",
+  "/NORESTART",
+]
 
 interface SemverParts {
   major: number
@@ -79,6 +85,36 @@ interface DownloadEdgeResponse {
   downloadUrl?: string
   presignedUrl?: string
   signedUrl?: string
+}
+
+const DEFAULT_GITHUB_REPO = "apanner/ctrack_publish_web"
+
+function resolveGithubRepoSlug(): string {
+  const fromEnv =
+    process.env.CTRACK_GITHUB_REPO?.trim() ||
+    process.env.GITHUB_REPOSITORY?.trim() ||
+    process.env.VITE_GITHUB_REPO?.trim() ||
+    ""
+  if (fromEnv.includes("/")) return fromEnv.replace(/^https?:\/\/github\.com\//i, "").replace(/\.git$/, "")
+  return DEFAULT_GITHUB_REPO
+}
+
+function defaultManifestUrl(): string {
+  return `https://github.com/${resolveGithubRepoSlug()}/releases/latest/download/latest.json`
+}
+
+function getUpdateChannel(): string {
+  return (process.env.CTRACK_UPDATE_CHANNEL || "stable").trim() || "stable"
+}
+
+function getEdgeBaseUrl(): string {
+  const direct = String(process.env.CTRACK_EDGE_BASE ?? "").trim().replace(/\/+$/, "")
+  if (direct) return direct
+  const supabaseUrl = String(process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? "")
+    .trim()
+    .replace(/\/+$/, "")
+  if (supabaseUrl) return `${supabaseUrl}/functions/v1`
+  return ""
 }
 
 function parseSemver(input: string): SemverParts | null {
@@ -163,12 +199,92 @@ async function resolveManifestUrlFromSupabaseRpc(): Promise<string | null> {
   return null
 }
 
+async function resolveManifestFromEngineReleases(): Promise<UpdateManifest | null> {
+  const config = getSupabaseConfig()
+  if (!config) return null
+  const channel = encodeURIComponent(getUpdateChannel())
+  try {
+    const payload = await fetchJson(
+      `${config.url}/rest/v1/engine_releases?channel=eq.${channel}&order=published_at.desc&limit=1&select=*`,
+      {
+        method: "GET",
+        headers: {
+          apikey: config.anonKey,
+          Authorization: `Bearer ${config.anonKey}`,
+        },
+      }
+    )
+    if (!Array.isArray(payload) || payload.length === 0) return null
+    const row = payload[0] as Record<string, unknown>
+    const version = typeof row.version === "string" ? row.version.trim() : ""
+    if (!version) return null
+    const engineFile =
+      (typeof row.engine_s3_key === "string" && row.engine_s3_key.split("/").pop()) ||
+      (typeof row.engine_file_name === "string" && row.engine_file_name) ||
+      "CTrackPublishEngine-Setup.exe"
+    const nukeFile =
+      (typeof row.nuke_s3_key === "string" && row.nuke_s3_key.split("/").pop()) ||
+      (typeof row.nuke_file_name === "string" && row.nuke_file_name) ||
+      "CTrackNuke-Setup.exe"
+    const engineSha =
+      (typeof row.engine_sha256 === "string" && row.engine_sha256) ||
+      (typeof row.engine_sha === "string" && row.engine_sha) ||
+      undefined
+    const nukeSha =
+      (typeof row.nuke_sha256 === "string" && row.nuke_sha256) ||
+      (typeof row.nuke_sha === "string" && row.nuke_sha) ||
+      undefined
+    return {
+      product: "ctrack-engine",
+      channel: typeof row.channel === "string" ? row.channel : getUpdateChannel(),
+      version,
+      publishedAt: typeof row.published_at === "string" ? row.published_at : undefined,
+      releaseNotes: typeof row.release_notes === "string" ? row.release_notes : undefined,
+      breaking: Boolean(row.breaking),
+      artifacts: {
+        engineSetup: {
+          fileName: String(engineFile),
+          sha256: engineSha,
+          sizeBytes: typeof row.engine_size_bytes === "number" ? row.engine_size_bytes : undefined,
+        },
+        nukePluginSetup: {
+          fileName: String(nukeFile),
+          sha256: nukeSha,
+          sizeBytes: typeof row.nuke_size_bytes === "number" ? row.nuke_size_bytes : undefined,
+        },
+      },
+    }
+  } catch {
+    return null
+  }
+}
+
 async function resolveManifestUrl(): Promise<string> {
   const fromEnv = process.env.CTRACK_MANIFEST_URL?.trim()
   if (fromEnv) return fromEnv
   const fromRpc = await resolveManifestUrlFromSupabaseRpc()
   if (fromRpc) return fromRpc
-  throw new Error("Manifest URL is not configured. Set CTRACK_MANIFEST_URL or provide a Supabase manifest RPC.")
+  return defaultManifestUrl()
+}
+
+async function fetchLatestManifest(): Promise<{ manifestUrl: string; manifest: UpdateManifest }> {
+  const errors: string[] = []
+  const manifestUrl = await resolveManifestUrl()
+  try {
+    const payload = await fetchJson(manifestUrl)
+    return { manifestUrl, manifest: parseManifest(payload) }
+  } catch (err) {
+    errors.push(err instanceof Error ? err.message : String(err))
+  }
+
+  const fromTable = await resolveManifestFromEngineReleases()
+  if (fromTable) {
+    return { manifestUrl: "supabase:engine_releases", manifest: fromTable }
+  }
+
+  throw new Error(
+    `Could not load update manifest. Tried ${manifestUrl}. ${errors.join(" | ") || "No details."}`
+  )
 }
 
 function parseManifest(payload: unknown): UpdateManifest {
@@ -213,12 +329,6 @@ function parseManifest(payload: unknown): UpdateManifest {
   }
 }
 
-async function fetchLatestManifest(): Promise<{ manifestUrl: string; manifest: UpdateManifest }> {
-  const manifestUrl = await resolveManifestUrl()
-  const payload = await fetchJson(manifestUrl)
-  return { manifestUrl, manifest: parseManifest(payload) }
-}
-
 function getUpdateTempDir(version: string): string {
   const dir = path.join(os.tmpdir(), "ctrack-update", version)
   fs.mkdirSync(dir, { recursive: true })
@@ -261,9 +371,9 @@ function resolveArtifactNameForProduct(product: UpdateProduct): "engineSetup" | 
   return product === "nuke" ? "nukePluginSetup" : "engineSetup"
 }
 async function requestPresignedDownloadUrl(version: string, fileName: string, product: UpdateProduct): Promise<{ url: string; backupUrl: string | null }> {
-  const edgeBase = process.env.CTRACK_EDGE_BASE?.trim()
+  const edgeBase = getEdgeBaseUrl()
   if (!edgeBase) {
-    throw new Error("CTRACK_EDGE_BASE is not configured")
+    throw new Error("Supabase URL is not configured (needed for engine-download). Set VITE_SUPABASE_URL in engine .env.")
   }
   const token = requireDeviceToken()
   const payload = await fetchJson(`${edgeBase.replace(/\/$/, "")}/engine-download`, {
@@ -277,6 +387,7 @@ async function requestPresignedDownloadUrl(version: string, fileName: string, pr
       artifact: resolveArtifactNameForProduct(product),
       version,
       fileName,
+      channel: getUpdateChannel(),
     }),
   })
   if (!payload || typeof payload !== "object") {
@@ -285,7 +396,7 @@ async function requestPresignedDownloadUrl(version: string, fileName: string, pr
   const data = payload as DownloadEdgeResponse
   const url = data.url ?? data.downloadUrl ?? data.presignedUrl ?? data.signedUrl
   if (!url || url.trim().length === 0) {
-    throw new Error("engine-download did not return a presigned URL")
+    throw new Error("engine-download did not return a download URL")
   }
   const backupUrl = typeof data.backupUrl === "string" && data.backupUrl.trim().length > 0 ? data.backupUrl.trim() : null
   return { url: url.trim(), backupUrl }
@@ -356,22 +467,26 @@ export async function downloadUpdate(localVersion: string): Promise<DownloadUpda
     }
   }
   const artifact = check.manifest.artifacts?.engineSetup
-  if (!artifact?.fileName || !artifact.sha256) {
-    throw new Error("Update manifest is missing engine artifact metadata")
+  if (!artifact?.fileName) {
+    throw new Error("Update manifest is missing engine artifact fileName")
   }
   const signed = await requestPresignedDownloadUrl(check.manifest.version, artifact.fileName, "engine")
   const outputDir = getUpdateTempDir(check.manifest.version)
   const installerPath = path.join(outputDir, artifact.fileName)
   await downloadFileWithFallback(signed.url, signed.backupUrl, installerPath)
-  const actualHash = normalizeSha256(await sha256File(installerPath))
-  const expectedHash = normalizeSha256(artifact.sha256)
-  if (actualHash !== expectedHash) {
-    try {
-      fs.unlinkSync(installerPath)
-    } catch {
-      // no-op
+  if (artifact.sha256) {
+    const actualHash = normalizeSha256(await sha256File(installerPath))
+    const expectedHash = normalizeSha256(artifact.sha256)
+    if (actualHash !== expectedHash) {
+      try {
+        fs.unlinkSync(installerPath)
+      } catch {
+        // no-op
+      }
+      throw new Error(`SHA256 mismatch. Expected ${expectedHash}, got ${actualHash}`)
     }
-    throw new Error(`SHA256 mismatch. Expected ${expectedHash}, got ${actualHash}`)
+  } else {
+    console.warn("[ctrack-engine] update manifest missing sha256 - skipping hash verify")
   }
   const pendingUpdate: DownloadedUpdate = {
     version: check.manifest.version,

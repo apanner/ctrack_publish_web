@@ -1,11 +1,13 @@
 /**
- * Background update loop: check manifest → download → silent Inno apply.
+ * Background update loop: check manifest -> download -> silent Inno apply.
  * Requires workstation pairing (device credential for engine-download).
+ * Toggle: tray-settings.autoDownloadAndUpdate (default on) or CTRACK_AUTO_UPDATE=0 to force off.
  */
 
 import { getAuthSnapshot } from "./auth-store.js"
 import { ENGINE_VERSION } from "./generated/engine-version.js"
 import type { QueueManager } from "./queue-manager.js"
+import { loadTraySettings } from "./tray-settings.js"
 import { applyDownloadedUpdate, checkForUpdate, downloadUpdate } from "./update-service.js"
 
 const BUSY = new Set(["transcoding", "uploading", "submitting", "processing"])
@@ -19,7 +21,12 @@ let applying = false
 
 function isAutoUpdateEnabled(): boolean {
   const raw = (process.env.CTRACK_AUTO_UPDATE || "1").trim().toLowerCase()
-  return raw !== "0" && raw !== "false" && raw !== "off" && raw !== "no"
+  if (raw === "0" || raw === "false" || raw === "off" || raw === "no") return false
+  try {
+    return loadTraySettings().autoDownloadAndUpdate !== false
+  } catch {
+    return true
+  }
 }
 
 function hasBusyJobs(queueManager: QueueManager): boolean {
@@ -49,7 +56,7 @@ export async function runAutoUpdateOnce(deps: AutoUpdateDeps): Promise<void> {
   }
 
   console.log(
-    `[ctrack-engine] auto-update: ${ENGINE_VERSION} → ${check.remoteVersion} — downloading…`
+    `[ctrack-engine] auto-update: ${ENGINE_VERSION} -> ${check.remoteVersion} - downloading...`
   )
   applying = true
   try {
@@ -76,7 +83,7 @@ export function startAutoUpdateLoop(deps: AutoUpdateDeps): void {
   if (loopStarted) return
   loopStarted = true
   if (!isAutoUpdateEnabled()) {
-    console.log("[ctrack-engine] auto-update disabled (CTRACK_AUTO_UPDATE=0)")
+    console.log("[ctrack-engine] auto-update disabled (CTRACK_AUTO_UPDATE=0 or settings)")
     return
   }
 

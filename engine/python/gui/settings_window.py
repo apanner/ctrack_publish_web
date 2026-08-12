@@ -162,6 +162,18 @@ class SettingsWindow(ctk.CTk):
         self.chk_login.pack(anchor="w", pady=(14, 4))
         self.chk_notify = ctk.CTkCheckBox(c1, text="Notify when tools are missing", font=T.FONT)
         self.chk_notify.pack(anchor="w")
+        self.chk_auto_update = ctk.CTkCheckBox(
+            c1, text="Auto-download and install engine updates", font=T.FONT
+        )
+        self.chk_auto_update.pack(anchor="w", pady=(4, 0))
+        ctk.CTkLabel(
+            c1,
+            text="When linked, checks GitHub for the latest release and upgrades silently (no uninstall).",
+            font=T.FONT_SM,
+            text_color=T.MUTED,
+            wraplength=420,
+            justify="left",
+        ).pack(anchor="w", pady=(4, 0))
 
         c2 = self._card(page)
         ctk.CTkLabel(c2, text="Engine status", font=T.FONT_SM, text_color=T.MUTED).pack(anchor="w")
@@ -372,6 +384,10 @@ class SettingsWindow(ctk.CTk):
             self.chk_notify.deselect()
         else:
             self.chk_notify.select()
+        if tray.get("autoDownloadAndUpdate") is False:
+            self.chk_auto_update.deselect()
+        else:
+            self.chk_auto_update.select()
 
         setup = "Ready" if bundle.get("setupComplete") else "Needs configuration"
         paths = bundle.get("paths") or {}
@@ -643,6 +659,7 @@ class SettingsWindow(ctk.CTk):
             "webUrl": self.txt_web.get().strip(),
             "launchAtLogin": bool(self.chk_login.get()),
             "notifyOnMissingTools": bool(self.chk_notify.get()),
+            "autoDownloadAndUpdate": bool(self.chk_auto_update.get()),
         }
         try:
             self.bundle = patch_settings(engine_patch, tray_patch)
