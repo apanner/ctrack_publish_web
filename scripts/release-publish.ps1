@@ -4,10 +4,10 @@ Publish CTrack installers to GitHub Releases + upsert Supabase engine_releases.
 Required environment variables:
   - SUPABASE_URL
   - SUPABASE_SERVICE_ROLE_KEY
-  - GITHUB_TOKEN (or GH_TOKEN) — fine-grained PAT or Actions GITHUB_TOKEN
+  - GITHUB_TOKEN (or GH_TOKEN) - fine-grained PAT or Actions GITHUB_TOKEN
 
 Optional:
-  - GITHUB_REPOSITORY (owner/repo — auto-detected via gh when unset)
+  - GITHUB_REPOSITORY (owner/repo - auto-detected via gh when unset)
   - GITHUB_SHA
   - SkipBuild switch (artifacts must already exist under installer/output)
 
@@ -169,7 +169,7 @@ if (-not $SkipBuild) {
 
   $bundledInRelease = Join-Path $repoRoot "release\engine\.env"
   if (-not (Test-Path -LiteralPath $bundledInRelease)) {
-    throw "Release payload missing release\engine\.env — bundling failed."
+    throw "Release payload missing release\engine\.env - bundling failed."
   }
   $bundleText = Get-Content -LiteralPath $bundledInRelease -Raw
   if ($bundleText -notmatch "VITE_SUPABASE_URL\s*=" -or $bundleText -notmatch "VITE_SUPABASE_ANON_KEY\s*=") {
