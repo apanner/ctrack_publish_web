@@ -73,9 +73,10 @@ jobs:
             throw "Missing secret VITE_SUPABASE_URL (or SUPABASE_URL)"
           }
           if ([string]::IsNullOrWhiteSpace($env:VITE_SUPABASE_ANON_KEY)) {
-            throw "Missing secret VITE_SUPABASE_ANON_KEY — required to bake engine/.env into the installer"
+            throw "Missing secret VITE_SUPABASE_ANON_KEY - required to bake engine/.env into the installer"
           }
-          Write-Host "Supabase URL ok; anon key length=$($env:VITE_SUPABASE_ANON_KEY.Length)"
+          $keyLen = $env:VITE_SUPABASE_ANON_KEY.Length
+          Write-Host "Supabase URL ok; anon key length=$keyLen"
 
       - name: Setup Go
         uses: actions/setup-go@v5
